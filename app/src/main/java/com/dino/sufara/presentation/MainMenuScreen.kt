@@ -2,38 +2,38 @@ package com.dino.sufara.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.dino.sufara.core.designsystem.components.SufaraButton
 
 @Composable
 fun MainMenuScreen(
-    onNavigateToSufara: () -> Unit
+    onStartClick: () -> Unit,
+    onSettingsClick: () -> Unit // Nova funkcija za navigaciju ka podešavanjima
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "Kursevi",
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 32.sp,
-            modifier = Modifier.padding(bottom = 32.dp)
-        )
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        
+        // Dugme za Podešavanja u gornjem desnom uglu
+        IconButton(
+            onClick = onSettingsClick,
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+        ) {
+            Icon(Icons.Default.Settings, contentDescription = "Подешавања", tint = MaterialTheme.colorScheme.primary)
+        }
 
-        SufaraButton(
-            text = "Sufara",
-            onClick = onNavigateToSufara,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Суфара", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(32.dp))
+            Button(onClick = onStartClick) {
+                Text("Покрени лекције")
+            }
+        }
     }
 }

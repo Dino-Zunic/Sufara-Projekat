@@ -18,7 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.feature.lesson.domain.model.Lesson
-import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
+import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
 
 @Composable
 fun LessonGridScreen(
@@ -45,6 +46,10 @@ fun LessonGridScreen(
 
 @Composable
 fun LessonCard(lesson: Lesson, onClick: () -> Unit) {
+    // Učitaj postavke da izvučeš odabrani arapski font
+    val settings = LocalSufaraSettings.current
+    val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -63,7 +68,8 @@ fun LessonCard(lesson: Lesson, onClick: () -> Unit) {
             
             Text(
                 text = lesson.symbol,
-                fontSize = 40.sp,
+                fontSize = 48.sp * settings.arabicSizeMultiplier, // Povećana osnovna veličina + množi se
+                fontFamily = arabicFont, // SADA KARTICA NASLJEĐUJE FONT!
                 color = Color.White
             )
 
