@@ -31,7 +31,6 @@ android {
 }
 
 dependencies {
-    // Povezujemo se sa dizajn sistemom zbog boja i SufaraButton-a
     implementation(project(":core:designsystem"))
 
     implementation(platform(libs.androidx.compose.bom))
@@ -39,4 +38,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+
+    implementation("io.coil-kt:coil-compose:2.5.0")
 }

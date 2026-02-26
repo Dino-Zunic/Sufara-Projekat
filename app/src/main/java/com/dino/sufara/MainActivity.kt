@@ -5,19 +5,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.dino.sufara.core.designsystem.SufaraTheme
 import com.dino.sufara.feature.lesson.data.repository.LocalAssetLessonRepository
-import com.dino.sufara.feature.lesson.presentation.grid.LessonGridScreen
-import com.dino.sufara.feature.lesson.presentation.grid.LessonGridViewModel
+import com.dino.sufara.navigation.SufaraNavGraph
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         val repository = LocalAssetLessonRepository(this)
-        val viewModel = LessonGridViewModel(repository)
 
         setContent {
             SufaraTheme {
-                LessonGridScreen(viewModel)
+                // NavGraph sada preuzima kontrolu nad ekranima
+                SufaraNavGraph(repository)
             }
         }
     }

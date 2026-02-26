@@ -1,6 +1,7 @@
 package com.dino.sufara.feature.lesson.presentation.grid
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -17,32 +18,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
 
 @Composable
-fun LessonGridScreen(viewModel: LessonGridViewModel) {
+fun LessonGridScreen(
+    viewModel: LessonGridViewModel,
+    onLessonClick: (String) -> Unit
+) {
     val lessons by viewModel.lessons.collectAsState()
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2), // Dve kolone
+        columns = GridCells.Fixed(2),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         items(lessons) { lesson ->
-            LessonCard(lesson)
+            LessonCard(
+                lesson = lesson,
+                onClick = { onLessonClick(lesson.id) }
+            )
         }
     }
 }
 
 @Composable
-fun LessonCard(lesson: Lesson) {
+fun LessonCard(lesson: Lesson, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface // MysticTeal
-        ),
-        modifier = Modifier.fillMaxWidth().aspectRatio(1f) // Kvadratne kartice
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth().aspectRatio(1f).clickable(onClick = onClick)
     ) {
         Column(
             modifier = Modifier.padding(16.dp).fillMaxSize(),
@@ -51,14 +57,13 @@ fun LessonCard(lesson: Lesson) {
         ) {
             Text(
                 text = lesson.id,
-                color = MaterialTheme.colorScheme.primary, // OrangeTerra
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold
             )
             
-            // Prikazujemo prvi primer iz .md fajla kao pregled
             Text(
-                text = lesson.examples.firstOrNull() ?: "",
-                fontSize = 32.sp,
+                text = lesson.symbol,
+                fontSize = 40.sp,
                 color = Color.White
             )
 
