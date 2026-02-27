@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.feature.lesson.domain.model.Lesson
@@ -46,37 +47,34 @@ fun LessonGridScreen(
 
 @Composable
 fun LessonCard(lesson: Lesson, onClick: () -> Unit) {
-    // Učitaj postavke da izvučeš odabrani arapski font
     val settings = LocalSufaraSettings.current
     val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
 
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth().aspectRatio(1f).clickable(onClick = onClick)
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(0.85f) // Ово чини картицу вишом него што је широка
+            .clickable(onClick = onClick)
     ) {
         Column(
             modifier = Modifier.padding(16.dp).fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.SpaceEvenly, // Равномерно распоређује простор
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = lesson.id,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Text(
                 text = lesson.symbol,
-                fontSize = 48.sp * settings.arabicSizeMultiplier, // Povećana osnovna veličina + množi se
-                fontFamily = arabicFont, // SADA KARTICA NASLJEĐUJE FONT!
+                fontSize = 48.sp, // ЗАКУЦАНО: Не множимо више са settings величином
+                fontFamily = arabicFont, 
                 color = Color.White
             )
 
             Text(
-                text = lesson.title,
+                text = lesson.title, // Приказујемо само наслов, без броја (lesson.id)
                 color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
             )
         }
     }

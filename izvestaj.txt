@@ -1,0 +1,1828 @@
+SUFARA PROJEKAT - TEHNIČKI IZVEŠTAJ
+Datum generisanja: Fri 27 Feb 2026 12:29:43 AM CET
+--------------------------------------
+
+STRUKTURA DIREKTORIJUMA:
+.
+├── app
+│   ├── build.gradle.kts
+│   └── src
+│       └── main
+│           ├── AndroidManifest.xml
+│           ├── assets
+│           │   └── lekcije
+│           │       ├── 001 Основа
+│           │       │   ├── квиз.md
+│           │       │   └── лекција.md
+│           │       ├── 002 Самогласници
+│           │       │   ├── додатак.md
+│           │       │   ├── квиз.md
+│           │       │   ├── лекција.md
+│           │       │   └── примери.md
+│           │       ├── 003 Хемзе
+│           │       │   ├── квиз.md
+│           │       │   ├── лекција.md
+│           │       │   └── примери.md
+│           │       └── симболи.md
+│           ├── java
+│           │   └── com
+│           │       └── dino
+│           │           ├── data
+│           │           └── sufara
+│           │               ├── database
+│           │               │   ├── AppDatabase.kt
+│           │               │   ├── Dao.kt
+│           │               │   └── Entities.kt
+│           │               ├── domain
+│           │               │   └── model
+│           │               ├── MainActivity.kt
+│           │               ├── navigation
+│           │               │   └── SufaraNavGraph.kt
+│           │               ├── presentation
+│           │               │   └── MainMenuScreen.kt
+│           │               └── ui
+│           │                   ├── screens
+│           │                   ├── theme
+│           │                   └── viewmodel
+│           └── res
+│               └── values
+├── build.gradle.kts
+├── core
+│   ├── common
+│   │   ├── build.gradle.kts
+│   │   └── src
+│   │       └── main
+│   │           └── java
+│   ├── database
+│   │   ├── build.gradle.kts
+│   │   └── src
+│   │       └── main
+│   │           └── java
+│   ├── designsystem
+│   │   ├── build.gradle.kts
+│   │   └── src
+│   │       └── main
+│   │           ├── java
+│   │           │   └── com
+│   │           │       └── dino
+│   │           │           └── sufara
+│   │           │               └── core
+│   │           │                   └── designsystem
+│   │           │                       ├── Color.kt
+│   │           │                       ├── components
+│   │           │                       │   └── SufaraButton.kt
+│   │           │                       ├── SufaraTheme.kt
+│   │           │                       └── Typography.kt
+│   │           └── res
+│   │               └── font
+│   └── network
+│       ├── build.gradle.kts
+│       └── src
+│           └── main
+│               └── java
+├── feature
+│   ├── lesson
+│   │   ├── build.gradle.kts
+│   │   └── src
+│   │       └── main
+│   │           ├── java
+│   │           │   └── com
+│   │           │       └── dino
+│   │           │           └── sufara
+│   │           │               └── feature
+│   │           │                   └── lesson
+│   │           │                       ├── data
+│   │           │                       │   └── repository
+│   │           │                       │       └── LocalAssetLessonRepository.kt
+│   │           │                       ├── domain
+│   │           │                       │   ├── model
+│   │           │                       │   │   ├── Lesson.kt
+│   │           │                       │   │   └── LessonStep.kt
+│   │           │                       │   └── repository
+│   │           │                       │       └── LessonRepository.kt
+│   │           │                       └── presentation
+│   │           │                           ├── grid
+│   │           │                           │   ├── LessonGridScreen.kt
+│   │           │                           │   └── LessonGridViewModel.kt
+│   │           │                           ├── settings
+│   │           │                           │   ├── SettingsScreen.kt
+│   │           │                           │   ├── SufaraFonts.kt
+│   │           │                           │   └── SufaraSettings.kt
+│   │           │                           └── viewer
+│   │           │                               ├── components
+│   │           │                               │   ├── ExampleStepScreen.kt
+│   │           │                               │   ├── ImageInfoStepScreen.kt
+│   │           │                               │   ├── QuizStepScreen.kt
+│   │           │                               │   ├── SufaraText.kt
+│   │           │                               │   └── TheoryStepScreen.kt
+│   │           │                               ├── LessonViewerScreen.kt
+│   │           │                               └── LessonViewerViewModel.kt
+│   │           └── res
+│   │               └── font
+│   ├── map
+│   │   ├── build.gradle.kts
+│   │   └── src
+│   │       └── main
+│   │           └── java
+│   └── spectrogram
+│       ├── build.gradle.kts
+│       └── src
+│           └── main
+│               └── java
+├── generisi_izvestaj.sh
+├── gradle
+│   ├── libs.versions.toml
+│   └── wrapper
+│       ├── gradle-wrapper.jar
+│       └── gradle-wrapper.properties
+├── gradle.properties
+├── gradlew
+├── gradlew.bat
+├── izvestaj.txt
+├── local.properties
+└── settings.gradle.kts
+
+82 directories, 56 files
+
+--------------------------------------
+SADRŽAJ FAJLOVA:
+--------------------------------------
+
+>>> PUTANJA: ./feature/map/build.gradle.kts
+--------------------------------------
+
+<<< KRAJ FAJLA: ./feature/map/build.gradle.kts
+======================================
+
+>>> PUTANJA: ./feature/spectrogram/build.gradle.kts
+--------------------------------------
+
+<<< KRAJ FAJLA: ./feature/spectrogram/build.gradle.kts
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/repository/LocalAssetLessonRepository.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.data.repository
+
+import android.content.Context
+import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
+
+class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara.feature.lesson.domain.repository.LessonRepository {
+
+    override suspend fun getAllLessons(): List<Lesson> = withContext(Dispatchers.IO) {
+        val allAssets = context.assets.list("lekcije") ?: emptyArray()
+        
+        // Читамо симболи.md глобално
+        val symbolsText = try {
+            context.assets.open("lekcije/симболи.md").bufferedReader().use { it.readText() }
+        } catch (e: Exception) { "" }
+        val symbols = symbolsText.lines().filter { it.isNotBlank() }
+
+        // Филтрирамо само праве фолдере (који почињу бројем, нпр. "001") да не би пуцало на фајловима
+        val validFolders = allAssets.filter { it.firstOrNull()?.isDigit() == true }.sorted()
+
+        validFolders.mapIndexedNotNull { index, folderName ->
+            val rawSymbol = symbols.getOrNull(index)?.trim() ?: "."
+            val finalSymbol = if (rawSymbol == ".") "📖" else rawSymbol
+            parseLessonFolder(folderName, finalSymbol)
+        }
+    }
+
+    // НОВО: Враћен метод који интерфејс захтева! 
+    // Овај метод тражи фолдер који почиње датим ID-јем (нпр. "001")
+    override suspend fun getLessonById(id: String): Lesson? = withContext(Dispatchers.IO) {
+        val allAssets = context.assets.list("lekcije") ?: emptyArray()
+        val folderName = allAssets.find { it.startsWith("$id ") || it == id } ?: return@withContext null
+        
+        parseLessonFolder(folderName, "📖")
+    }
+
+    // ПРЕИМЕНОВАНО: Ово је наша логика за читање фајлова
+    private suspend fun parseLessonFolder(folderName: String, symbol: String): Lesson? = withContext(Dispatchers.IO) {
+        try {
+            val basePath = "lekcije/$folderName"
+            val steps = mutableListOf<LessonStep>()
+
+            val lekcijaText = readFile(basePath, "лекција.md")
+            val dodatakText = readFile(basePath, "додатак.md") // Читамо додатак унапред
+
+            if (lekcijaText != null) {
+                // Пакујемо лекцију и додатак заједно
+                steps.add(LessonStep.Theory("Теорија", lekcijaText, dodatakText))
+                
+                if (context.assets.list(basePath)?.contains("исходиште.png") == true) {
+                    steps.add(LessonStep.ImageInfo("file:///android_asset/$basePath/исходиште.png"))
+                }
+            }
+
+            val kvizText = readFile(basePath, "квиз.md")
+            if (kvizText != null) {
+                steps.addAll(parseQuiz(kvizText))
+            }
+
+            val primeriText = readFile(basePath, "примери.md")
+            if (primeriText != null) {
+                primeriText.lines().filter { it.isNotBlank() }.forEach { line ->
+                    steps.add(LessonStep.Example(line.trim()))
+                }
+            }
+
+            val idPart = folderName.substringBefore(" ")
+            val titlePart = folderName.substringAfter(" ")
+
+            Lesson(id = idPart, title = titlePart, symbol = symbol, steps = steps)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun readFile(folder: String, fileName: String): String? {
+        return try {
+            context.assets.open("$folder/$fileName").bufferedReader().use { it.readText() }
+        } catch (e: FileNotFoundException) { null }
+    }
+
+    private fun parseQuiz(text: String): List<LessonStep.Quiz> {
+        val quizzes = mutableListOf<LessonStep.Quiz>()
+        var currentQuestion = ""
+        var currentAnswers = mutableListOf<String>()
+
+        text.lines().forEach { line ->
+            if (line.isNotBlank()) {
+                if (line.trim().first().isDigit() && !line.startsWith(" ") && !line.startsWith("\t")) {
+                    if (currentQuestion.isNotEmpty() && currentAnswers.isNotEmpty()) {
+                        quizzes.add(LessonStep.Quiz(currentQuestion, currentAnswers, currentAnswers.first()))
+                    }
+                    currentQuestion = line.substringAfter(".").trim()
+                    currentAnswers = mutableListOf()
+                } else if (line.trim().firstOrNull()?.isDigit() == true) {
+                    currentAnswers.add(line.substringAfter(".").trim())
+                }
+            }
+        }
+        if (currentQuestion.isNotEmpty() && currentAnswers.isNotEmpty()) {
+            quizzes.add(LessonStep.Quiz(currentQuestion, currentAnswers, currentAnswers.first()))
+        }
+        return quizzes
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/repository/LocalAssetLessonRepository.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/model/Lesson.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.domain.model
+
+data class Lesson(
+    val id: String,
+    val title: String,
+    val symbol: String,
+    val steps: List<LessonStep>
+)
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/model/Lesson.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/model/LessonStep.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.domain.model
+
+sealed class LessonStep {
+    data class Theory(val title: String, val text: String, val dodatakText: String? = null) : LessonStep()
+    data class ImageInfo(val imagePath: String) : LessonStep()
+    data class Quiz(val question: String, val answers: List<String>, val correctAnswer: String) : LessonStep()
+    data class Example(val text: String) : LessonStep()
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/model/LessonStep.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/repository/LessonRepository.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.domain.repository
+
+import com.dino.sufara.feature.lesson.domain.model.Lesson
+
+interface LessonRepository {
+    suspend fun getAllLessons(): List<Lesson>
+    suspend fun getLessonById(id: String): Lesson?
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/repository/LessonRepository.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/LessonViewerScreen.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.viewer
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.presentation.viewer.components.ExampleStepScreen
+import com.dino.sufara.feature.lesson.presentation.viewer.components.ImageInfoStepScreen
+import com.dino.sufara.feature.lesson.presentation.viewer.components.QuizStepScreen
+import com.dino.sufara.feature.lesson.presentation.viewer.components.TheoryStepScreen
+
+@Composable
+fun LessonViewerScreen(
+    viewModel: LessonViewerViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val lesson by viewModel.lesson.collectAsState()
+    val currentIndex by viewModel.currentIndex.collectAsState()
+
+    // Спречавамо светлуцање (White screen flash)
+    if (lesson == null) {
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    val steps = lesson!!.steps
+    if (steps.isEmpty()) {
+        onNavigateBack() // Ако лекција нема ништа, само се врати
+        return
+    }
+
+    val currentStep = steps[currentIndex]
+    val progress = (currentIndex + 1).toFloat() / steps.size.toFloat()
+
+    // НОВО: Јединствена логика за прелазак на следећи корак или излазак
+    val handleNextStep = {
+        if (currentIndex == steps.size - 1) {
+            onNavigateBack() // Крај лекције!
+        } else {
+            viewModel.nextStep()
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { if (currentIndex > 0) viewModel.previousStep() else onNavigateBack() }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = Color.White)
+            }
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier.weight(1f).height(12.dp).padding(horizontal = 8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surface
+            )
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.Default.Close, contentDescription = "Затвори", tint = Color.White)
+            }
+        }
+
+        when (currentStep) {
+            is LessonStep.Theory -> TheoryStepScreen(step = currentStep, onNextClick = handleNextStep)
+            is LessonStep.ImageInfo -> ImageInfoStepScreen(step = currentStep, onNextClick = handleNextStep)
+            is LessonStep.Quiz -> QuizStepScreen(step = currentStep, onNextClick = handleNextStep)
+            is LessonStep.Example -> ExampleStepScreen(step = currentStep, onNextClick = handleNextStep)
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/LessonViewerScreen.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/SufaraText.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.viewer.components
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
+import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+
+@Composable
+fun SufaraText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    baseFontSize: TextUnit = 18.sp,
+    arabicFontSize: TextUnit = 32.sp,
+    lineHeight: TextUnit = 32.sp
+) {
+    // 1. ČITAMO TRENUTNE POSTAVKE
+    val settings = LocalSufaraSettings.current
+    
+    val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
+    val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
+    
+    val finalBaseSize = baseFontSize * settings.cyrillicSizeMultiplier
+    val finalArabicSize = arabicFontSize * settings.arabicSizeMultiplier
+    val finalLineHeight = lineHeight * maxOf(settings.cyrillicSizeMultiplier, settings.arabicSizeMultiplier)
+
+    val arabicRegex = Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+")
+    
+    val annotatedString = buildAnnotatedString {
+        val parts = text.split("**")
+        parts.forEachIndexed { index, part ->
+            val isBold = index % 2 != 0
+            val baseStyle = SpanStyle(
+                fontFamily = cyrillicFont, // PRIMJENJUJEMO ĆIRILIČNI FONT
+                fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
+                color = color,
+                fontSize = finalBaseSize
+            )
+
+            withStyle(baseStyle) {
+                var lastIndex = 0
+                arabicRegex.findAll(part).forEach { matchResult ->
+                    append(part.substring(lastIndex, matchResult.range.first))
+                    
+                    withStyle(SpanStyle(
+                        fontFamily = arabicFont, // PRIMJENJUJEMO ARAPSKI FONT
+                        fontSize = finalArabicSize, 
+                        fontWeight = FontWeight.Normal, 
+                        color = MaterialTheme.colorScheme.primary
+                    )) {
+                        append(matchResult.value)
+                    }
+                    lastIndex = matchResult.range.last + 1
+                }
+                append(part.substring(lastIndex))
+            }
+        }
+    }
+
+    Text(text = annotatedString, modifier = modifier, lineHeight = finalLineHeight)
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/SufaraText.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/ExampleStepScreen.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.viewer.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
+
+@Composable
+fun ExampleStepScreen(
+    step: LessonStep.Example,
+    onNextClick: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+
+        Card(
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                SufaraText(
+                    text = step.text,
+                    modifier = Modifier.padding(16.dp),
+                    baseFontSize = 32.sp,
+                    arabicFontSize = 100.sp,
+                    lineHeight = 120.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.PlayArrow, contentDescription = "Звук", tint = Color.White, modifier = Modifier.size(32.dp))
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(onClick = onNextClick, modifier = Modifier.fillMaxWidth()) {
+            Text("Даље")
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/ExampleStepScreen.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/QuizStepScreen.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.viewer.components
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+@Composable
+fun QuizStepScreen(
+    step: LessonStep.Quiz,
+    onNextClick: () -> Unit
+) {
+    var attemptCount by remember { mutableIntStateOf(0) } // Пратимо број покушаја
+
+    key(step.question, attemptCount) { // Ресетује UI кад се повећа attemptCount!
+        val shuffledAnswers = remember { step.answers.shuffled() }
+        var selectedAnswer by remember { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                SufaraText(text = step.question, modifier = Modifier.padding(bottom = 32.dp))
+
+                shuffledAnswers.forEach { answer ->
+                    val isCorrect = answer == step.correctAnswer
+                    val isSelected = selectedAnswer == answer
+                    val hasAnswered = selectedAnswer != null
+
+                    val containerColor = when {
+                        hasAnswered && isCorrect -> Color(0xFF4CAF50)
+                        hasAnswered && isSelected && !isCorrect -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.surface
+                    }
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .clickable(enabled = !hasAnswered) {
+                                selectedAnswer = answer
+                                if (answer == step.correctAnswer) {
+                                    scope.launch { delay(1000); onNextClick() } // Браво, иди даље!
+                                }
+                            },
+                        colors = CardDefaults.cardColors(containerColor = containerColor)
+                    ) {
+                        SufaraText(text = answer, modifier = Modifier.padding(16.dp))
+                    }
+                }
+            }
+
+            // Грешка? Клик било где РЕСЕТУЈЕ питање
+            if (selectedAnswer != null && selectedAnswer != step.correctAnswer) {
+                Box(
+                    modifier = Modifier.fillMaxSize().clickable(
+                        interactionSource = remember { MutableInteractionSource() }, indication = null
+                    ) {
+                        selectedAnswer = null
+                        attemptCount++ // Ово покреће shuffle из почетка!
+                    }
+                ) {
+                    Text(
+                        text = "Додирни било где за поновни покушај",
+                        color = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(32.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/QuizStepScreen.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/ImageInfoStepScreen.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.viewer.components
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
+
+@Composable
+fun ImageInfoStepScreen(
+    step: LessonStep.ImageInfo,
+    onNextClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        AsyncImage(
+            model = step.imagePath,
+            contentDescription = "Илустрација лекције",
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentScale = ContentScale.Fit
+        )
+
+        Button(
+            onClick = onNextClick,
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
+        ) {
+            Text("Даље", fontSize = 18.sp)
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/ImageInfoStepScreen.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/TheoryStepScreen.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.viewer.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
+
+@Composable
+fun TheoryStepScreen(
+    step: LessonStep.Theory,
+    onNextClick: () -> Unit
+) {
+    var isDodatakExpanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState())) {
+        Text(
+            text = step.title,
+            fontSize = 28.sp,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+        
+        SufaraText(text = step.text)
+
+        // Суптилни додатак (Toggle)
+        if (step.dodatakText != null) {
+            Spacer(modifier = Modifier.height(32.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth().clickable { isDodatakExpanded = !isDodatakExpanded }
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, contentDescription = "Инфо", tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Занимљивости (Кликни да отвориш)", color = MaterialTheme.colorScheme.primary)
+                    }
+                    AnimatedVisibility(visible = isDodatakExpanded) {
+                        Column {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            SufaraText(text = step.dodatakText, color = Color.LightGray)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+        
+        Button(
+            onClick = onNextClick,
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+        ) {
+            Text("Даље", fontSize = 18.sp)
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/components/TheoryStepScreen.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/LessonViewerViewModel.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.viewer
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class LessonViewerViewModel(
+    private val repository: LessonRepository,
+    private val lessonId: String
+) : ViewModel() {
+
+    private val _lesson = MutableStateFlow<Lesson?>(null)
+    val lesson = _lesson.asStateFlow()
+
+    private val _currentIndex = MutableStateFlow(0)
+    val currentIndex = _currentIndex.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            // Убацујемо пун назив фолдера за претрагу
+            val folders = repository.getAllLessons()
+            val fullLesson = folders.find { it.id == lessonId }
+            _lesson.value = repository.getLessonById(fullLesson?.id + " " + fullLesson?.title)
+        }
+    }
+
+    fun nextStep() {
+        val currentLesson = _lesson.value ?: return
+        if (_currentIndex.value < currentLesson.steps.size - 1) {
+            _currentIndex.value++
+        } else {
+            // Овде ћемо касније додати логику за завршетак лекције
+        }
+    }
+
+    fun previousStep() {
+        if (_currentIndex.value > 0) {
+            _currentIndex.value--
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/LessonViewerViewModel.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/grid/LessonGridScreen.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.grid
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
+import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+
+@Composable
+fun LessonGridScreen(
+    viewModel: LessonGridViewModel,
+    onLessonClick: (String) -> Unit
+) {
+    val lessons by viewModel.lessons.collectAsState()
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+    ) {
+        items(lessons) { lesson ->
+            LessonCard(
+                lesson = lesson,
+                onClick = { onLessonClick(lesson.id) }
+            )
+        }
+    }
+}
+
+@Composable
+fun LessonCard(lesson: Lesson, onClick: () -> Unit) {
+    // Učitaj postavke da izvučeš odabrani arapski font
+    val settings = LocalSufaraSettings.current
+    val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth().aspectRatio(1f).clickable(onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp).fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = lesson.id,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Text(
+                text = lesson.symbol,
+                fontSize = 48.sp * settings.arabicSizeMultiplier, // Povećana osnovna veličina + množi se
+                fontFamily = arabicFont, // SADA KARTICA NASLJEĐUJE FONT!
+                color = Color.White
+            )
+
+            Text(
+                text = lesson.title,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/grid/LessonGridScreen.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/grid/LessonGridViewModel.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.grid
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class LessonGridViewModel(
+    private val repository: LessonRepository
+) : ViewModel() {
+
+    private val _lessons = MutableStateFlow<List<Lesson>>(emptyList())
+    val lessons = _lessons.asStateFlow()
+
+    init {
+        loadLessons()
+    }
+
+    private fun loadLessons() {
+        viewModelScope.launch {
+            _lessons.value = repository.getAllLessons()
+        }
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/grid/LessonGridViewModel.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/settings/SettingsScreen.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.settings
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.dino.sufara.feature.lesson.presentation.viewer.components.SufaraText
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
+    val settings = LocalSufaraSettings.current
+    val actions = LocalSufaraSettingsActions.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        // GORNJA TRAKA SA DUGMETOM NAZAD
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Подешавања", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 1. LIVE PREVIEW
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Приказ уживо:", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+                SufaraText(text = "Ово је **ћирилица**.\nА ово је арапски: بِسْمِ اللَّهِ")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text("Ћирилица", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Lora", "Roboto Slab").forEach { font ->
+                FilterChip(
+                    selected = settings.cyrillicFont == font,
+                    onClick = { actions.updateCyrillicFont(font) },
+                    label = { Text(font) }
+                )
+            }
+        }
+        
+        Text("Величина: ${(settings.cyrillicSizeMultiplier * 100).toInt()}%")
+        Slider(
+            value = settings.cyrillicSizeMultiplier,
+            onValueChange = { actions.updateCyrillicSize(it) },
+            valueRange = 0.8f..2.0f
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text("Арапски", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Amiri", "Noto Naskh").forEach { font ->
+                FilterChip(
+                    selected = settings.arabicFont == font,
+                    onClick = { actions.updateArabicFont(font) },
+                    label = { Text(font) }
+                )
+            }
+        }
+
+        Text("Величина: ${(settings.arabicSizeMultiplier * 100).toInt()}%")
+        Slider(
+            value = settings.arabicSizeMultiplier,
+            onValueChange = { actions.updateArabicSize(it) },
+            valueRange = 0.8f..3.0f 
+        )
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/settings/SettingsScreen.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/settings/SufaraFonts.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.settings
+
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import com.dino.sufara.feature.lesson.R
+
+object SufaraFonts {
+    val Lora = FontFamily(
+        Font(R.font.lora_regular, FontWeight.Normal),
+        Font(R.font.lora_bold, FontWeight.Bold)
+    )
+    
+    val RobotoSlab = FontFamily(
+        Font(R.font.roboto_slab_light, FontWeight.Normal),
+        Font(R.font.roboto_slab_bold, FontWeight.Bold)
+    )
+    
+    val Amiri = FontFamily(
+        Font(R.font.amiri_regular, FontWeight.Normal)
+    )
+    
+    val NotoNaskh = FontFamily(
+        Font(R.font.noto_naskh_arabic_regular, FontWeight.Normal)
+    )
+
+    fun getCyrillicFont(name: String): FontFamily = when(name) {
+        "Roboto Slab" -> RobotoSlab
+        else -> Lora
+    }
+
+    fun getArabicFont(name: String): FontFamily = when(name) {
+        "Noto Naskh" -> NotoNaskh
+        else -> Amiri
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/settings/SufaraFonts.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/settings/SufaraSettings.kt
+--------------------------------------
+package com.dino.sufara.feature.lesson.presentation.settings
+
+import android.content.Context
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+
+data class SufaraSettingsState(
+    val cyrillicFont: String = "Lora",
+    val arabicFont: String = "Noto Naskh", // Promijenjen default
+    val cyrillicSizeMultiplier: Float = 1.0f,
+    val arabicSizeMultiplier: Float = 1.0f
+)
+
+interface SufaraSettingsActions {
+    fun updateCyrillicFont(name: String)
+    fun updateArabicFont(name: String)
+    fun updateCyrillicSize(size: Float)
+    fun updateArabicSize(size: Float)
+}
+
+val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
+val LocalSufaraSettingsActions = compositionLocalOf<SufaraSettingsActions> { error("Nema akcija") }
+
+@Composable
+fun SufaraSettingsProvider(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("sufara_prefs", Context.MODE_PRIVATE) }
+
+    var cyrillicFont by remember { mutableStateOf(prefs.getString("cyr_font", "Lora") ?: "Lora") }
+    // Ovdje također postavljen Noto Naskh kao fallback
+    var arabicFont by remember { mutableStateOf(prefs.getString("ar_font", "Noto Naskh") ?: "Noto Naskh") } 
+    var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f)) }
+    var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f)) }
+
+    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize)
+
+    val actions = object : SufaraSettingsActions {
+        override fun updateCyrillicFont(name: String) {
+            cyrillicFont = name
+            prefs.edit().putString("cyr_font", name).apply()
+        }
+        override fun updateArabicFont(name: String) {
+            arabicFont = name
+            prefs.edit().putString("ar_font", name).apply()
+        }
+        override fun updateCyrillicSize(size: Float) {
+            cyrillicSize = size
+            prefs.edit().putFloat("cyr_size", size).apply()
+        }
+        override fun updateArabicSize(size: Float) {
+            arabicSize = size
+            prefs.edit().putFloat("ar_size", size).apply()
+        }
+    }
+
+    CompositionLocalProvider(
+        LocalSufaraSettings provides settingsState,
+        LocalSufaraSettingsActions provides actions
+    ) {
+        content()
+    }
+}
+<<< KRAJ FAJLA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/settings/SufaraSettings.kt
+======================================
+
+>>> PUTANJA: ./feature/lesson/build.gradle.kts
+--------------------------------------
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.dino.sufara.feature.lesson"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation(project(":core:designsystem"))
+
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+
+    implementation("io.coil-kt:coil-compose:2.5.0")
+}
+
+<<< KRAJ FAJLA: ./feature/lesson/build.gradle.kts
+======================================
+
+>>> PUTANJA: ./settings.gradle.kts
+--------------------------------------
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "Sufara Projekat"
+include(":app")
+include(":core:designsystem")
+include(":core:common")
+include(":core:database")
+include(":core:network")
+include(":feature:lesson")
+include(":feature:map")
+include(":feature:spectrogram")
+
+<<< KRAJ FAJLA: ./settings.gradle.kts
+======================================
+
+>>> PUTANJA: ./core/common/build.gradle.kts
+--------------------------------------
+
+<<< KRAJ FAJLA: ./core/common/build.gradle.kts
+======================================
+
+>>> PUTANJA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/SufaraTheme.kt
+--------------------------------------
+package com.dino.sufara.core.designsystem
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+
+private val DarkColorScheme = darkColorScheme(
+    primary = OrangeTerra,
+    secondary = BlueTeal,
+    background = BlueDeep,
+    surface = BlueTeal,
+    onPrimary = WhitePure,
+    onSecondary = WhiteMint,
+    onBackground = WhiteMint,
+    onSurface = WhiteMint,
+    error = RedCoral
+)
+
+@Composable
+fun SufaraTheme(
+    content: @Composable () -> Unit
+) {
+    MaterialTheme(
+        colorScheme = DarkColorScheme,
+        typography = SufaraTypography,
+        content = content
+    )
+}
+<<< KRAJ FAJLA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/SufaraTheme.kt
+======================================
+
+>>> PUTANJA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/Color.kt
+--------------------------------------
+package com.dino.sufara.core.designsystem
+
+import androidx.compose.ui.graphics.Color
+
+// Glavna paleta
+val BlueDeep = Color(0xFF114B5F)     // Pozadina (SpaceDark)
+val BlueTeal = Color(0xFF028090)     // Kartice (MysticTeal)
+val WhiteMint = Color(0xFFE4FDE1)    // Tekst uputstva (StarlightWhite)
+// PRIVREMENI HACK: Ime je Terra (narandžasta), ali boja je ŽUTA za arapski
+// Stara boja: Color(0xFFE58F65)
+val OrangeTerra = Color(0xFFFFD700)  // Gold/Žuta za isticanje arapskog
+val RedCoral = Color(0xFFF45B69)     // Greške (CoralRed)
+
+// Pomoćne boje
+val WhitePure = Color(0xFFFFFFFF)    // Arapski tekst
+val TealGhost = Color(0x33028090)    // Providni efekti na klik
+<<< KRAJ FAJLA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/Color.kt
+======================================
+
+>>> PUTANJA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/Typography.kt
+--------------------------------------
+package com.dino.sufara.core.designsystem
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+val IpaFontFamily = FontFamily(
+    Font(resId = R.font.doulossil_regular, weight = FontWeight.Normal)
+)
+
+val SufaraTypography = Typography(
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp
+    ),
+    displayMedium = TextStyle(
+        fontFamily = IpaFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 20.sp
+    )
+)
+<<< KRAJ FAJLA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/Typography.kt
+======================================
+
+>>> PUTANJA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/components/SufaraButton.kt
+--------------------------------------
+package com.dino.sufara.core.designsystem.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+@Composable
+fun SufaraButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primary 
+) {
+    Box(
+        modifier = modifier
+            .padding(bottom = 4.dp)
+            .clickable(onClick = onClick)
+            .background(
+                color = containerColor,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text.uppercase(),
+            color = MaterialTheme.colorScheme.onPrimary, 
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+<<< KRAJ FAJLA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/components/SufaraButton.kt
+======================================
+
+>>> PUTANJA: ./core/designsystem/build.gradle.kts
+--------------------------------------
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.dino.sufara.core.designsystem"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    composeOptions {
+        // Verzija mora biti usklađena sa Kotlin 1.9.22
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.core.ktx)
+}
+<<< KRAJ FAJLA: ./core/designsystem/build.gradle.kts
+======================================
+
+>>> PUTANJA: ./core/database/build.gradle.kts
+--------------------------------------
+
+<<< KRAJ FAJLA: ./core/database/build.gradle.kts
+======================================
+
+>>> PUTANJA: ./core/network/build.gradle.kts
+--------------------------------------
+
+<<< KRAJ FAJLA: ./core/network/build.gradle.kts
+======================================
+
+>>> PUTANJA: ./build.gradle.kts
+--------------------------------------
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.hilt) apply false
+}
+<<< KRAJ FAJLA: ./build.gradle.kts
+======================================
+
+>>> PUTANJA: ./app/src/main/AndroidManifest.xml
+--------------------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="true"
+        android:label="Sufara"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+
+<<< KRAJ FAJLA: ./app/src/main/AndroidManifest.xml
+======================================
+
+>>> PUTANJA: ./app/src/main/java/com/dino/sufara/MainActivity.kt
+--------------------------------------
+package com.dino.sufara
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import com.dino.sufara.core.designsystem.SufaraTheme
+import com.dino.sufara.feature.lesson.data.repository.LocalAssetLessonRepository
+import com.dino.sufara.feature.lesson.presentation.settings.SufaraSettingsProvider
+import com.dino.sufara.navigation.SufaraNavGraph
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        val repository = LocalAssetLessonRepository(this)
+
+        setContent {
+            SufaraTheme {
+                // SufaraSettingsProvider omogućava globalni pristup fontovima i veličinama
+                SufaraSettingsProvider {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        // NavGraph sada preuzima kontrolu nad ekranima
+                        SufaraNavGraph(repository)
+                    }
+                }
+            }
+        }
+    }
+}
+<<< KRAJ FAJLA: ./app/src/main/java/com/dino/sufara/MainActivity.kt
+======================================
+
+>>> PUTANJA: ./app/src/main/java/com/dino/sufara/navigation/SufaraNavGraph.kt
+--------------------------------------
+package com.dino.sufara.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
+import com.dino.sufara.feature.lesson.presentation.grid.LessonGridScreen
+import com.dino.sufara.feature.lesson.presentation.grid.LessonGridViewModel
+import com.dino.sufara.feature.lesson.presentation.viewer.LessonViewerScreen
+import com.dino.sufara.feature.lesson.presentation.viewer.LessonViewerViewModel
+import com.dino.sufara.feature.lesson.presentation.settings.SettingsScreen
+import com.dino.sufara.presentation.MainMenuScreen
+
+@Composable
+fun SufaraNavGraph(repository: LessonRepository) {
+    val navController = rememberNavController()
+
+    NavHost(navController = navController, startDestination = "main_menu") {
+        composable("main_menu") {
+            MainMenuScreen(
+                onStartClick = { navController.navigate("lesson_grid") },
+                onSettingsClick = { navController.navigate("settings") } // Vodi na settings ekran
+            )
+        }
+        
+        // RUTA ZA PODEŠAVANJA
+        composable("settings") {
+            SettingsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable("lesson_grid") {
+            val viewModel = remember { LessonGridViewModel(repository) }
+            LessonGridScreen(
+                viewModel = viewModel,
+                onLessonClick = { lessonId ->
+                    navController.navigate("lesson_viewer/$lessonId")
+                }
+            )
+        }
+
+        composable("lesson_viewer/{lessonId}") { backStackEntry ->
+            val lessonId = backStackEntry.arguments?.getString("lessonId") ?: return@composable
+            val viewModel = remember { LessonViewerViewModel(repository, lessonId) }
+            LessonViewerScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+    }
+}
+<<< KRAJ FAJLA: ./app/src/main/java/com/dino/sufara/navigation/SufaraNavGraph.kt
+======================================
+
+>>> PUTANJA: ./app/src/main/java/com/dino/sufara/database/AppDatabase.kt
+--------------------------------------
+
+<<< KRAJ FAJLA: ./app/src/main/java/com/dino/sufara/database/AppDatabase.kt
+======================================
+
+>>> PUTANJA: ./app/src/main/java/com/dino/sufara/database/Entities.kt
+--------------------------------------
+
+<<< KRAJ FAJLA: ./app/src/main/java/com/dino/sufara/database/Entities.kt
+======================================
+
+>>> PUTANJA: ./app/src/main/java/com/dino/sufara/database/Dao.kt
+--------------------------------------
+
+<<< KRAJ FAJLA: ./app/src/main/java/com/dino/sufara/database/Dao.kt
+======================================
+
+>>> PUTANJA: ./app/src/main/java/com/dino/sufara/presentation/MainMenuScreen.kt
+--------------------------------------
+package com.dino.sufara.presentation
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+@Composable
+fun MainMenuScreen(
+    onStartClick: () -> Unit,
+    onSettingsClick: () -> Unit // Nova funkcija za navigaciju ka podešavanjima
+) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        
+        // Dugme za Podešavanja u gornjem desnom uglu
+        IconButton(
+            onClick = onSettingsClick,
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+        ) {
+            Icon(Icons.Default.Settings, contentDescription = "Подешавања", tint = MaterialTheme.colorScheme.primary)
+        }
+
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Суфара", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(32.dp))
+            Button(onClick = onStartClick) {
+                Text("Покрени лекције")
+            }
+        }
+    }
+}
+<<< KRAJ FAJLA: ./app/src/main/java/com/dino/sufara/presentation/MainMenuScreen.kt
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/002 Самогласници/додатак.md
+--------------------------------------
+Дамма значи "скупљање" јер се уста скупљају при изговору вокала У.
+Фетха значи "отварање" јер се уста отварају при изговору вокала Е.
+Кесра значи "ломљење". Овај назив добила је зато што се доња вилица при изговору вокала И спушта, као да се ломи.
+
+Фетха се код неких харфова, углавном крупних, изговара као А. О овоме ће бити више речи када дођемо до тих харфова.
+
+
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/002 Самогласници/додатак.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/002 Самогласници/примери.md
+--------------------------------------
+ـُ
+ـَ
+ـِ
+ـَ
+ـُ
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/002 Самогласници/примери.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/002 Самогласници/лекција.md
+--------------------------------------
+У арапском језику постоје три самогласника: фетха, дамма, и кесра.
+
+**Дамма** се увек пише изнад харфа. Изгледа као мали зарез. Изговара се кратко У.
+
+◌ُ
+
+**Фетха** се увек пише изнад харфа. Изгледа као танка коса црта. Изговара се кратко Е.
+
+◌َ
+
+**Кесра** се увек пише испод харфа.Изгледа као танка коса црта. Изговара се кратко И. 
+
+◌ِ
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/002 Самогласници/лекција.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/002 Самогласници/квиз.md
+--------------------------------------
+1. Колико има самогласника у арапском језику:
+	1. 3
+	2. 4
+	3. 5
+2. Дамма изгледа као:
+	1. зарез
+	2. тачка
+	3. коса црта
+3. За вокал У ознака је:
+	1. дамма
+	2. фетха
+	3. кесра
+4. Фетха изгледа као:
+	1. коса црта изнад харфа
+	2. коса црта испод харфа
+	3. зарез изнад харфа
+5. Фетха означава вокал:
+	1. Е
+	2. У
+	3. И
+6. За вокал И ознака је:
+	1. кесра
+	2. фетха
+	3. дамма
+7. Испод харфа једино се пише:
+	1. кесра
+	2. фетха
+	3. дамма
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/002 Самогласници/квиз.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/003 Хемзе/примери.md
+--------------------------------------
+أَ
+إِ
+أُ
+أَأُ
+إِأَ
+أُإِ
+إِأُ
+أَإِأَ
+إِأَأُ
+أُأُإِ
+أَأُإِأُ
+إِإِأُأَ
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/003 Хемзе/примери.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/003 Хемзе/лекција.md
+--------------------------------------
+**Хемзе** је најједноставнији харф за изговор. Изговара се испуштањем гласа из дубине грла.
+
+Овако се хемзе изговара са даммом (У):
+
+أُ
+
+Овако се земзе изговара са фетхом (Е):
+
+أَ
+
+Овако се хемзе изговара са кесром (И):
+
+إِ
+
+Овај, као и следећих неколико харфова, спајају се само са **десне** стране, дакле са претходним харфом. Не спајају се са наредним.
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/003 Хемзе/лекција.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/003 Хемзе/квиз.md
+--------------------------------------
+1. Хемзе се изговара:
+	1. из дубине грла
+	2. из средина грла
+	3. са краја језика
+2. Овај, као и следећих неколико харфова, у писању се спајају:
+	1. само са претходним, десним харфом
+	2. само са следећим, левим харфом
+	3. са обе стране
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/003 Хемзе/квиз.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/симболи.md
+--------------------------------------
+.
+ـُـَِ
+أ
+د
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/симболи.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/001 Основа/лекција.md
+--------------------------------------
+Арапски језик има 28 слова - **харфова** и чита се са десна на лево. Харфови служе као знакови за сугласнике. У арапском језику нема посебних слова за самогласнике, већ се за самогласнике користе посебни знаци који се стављају изнад харфова или испод њих.
+
+На пример, у следећој реченици сугласници су обојени ..., а самогласници ... бојом.
+
+بِسْمِ اللَّـهِ الرَّحْمَـٰنِ الرَّحِيمِ
+
+Харфови имају различите облике у зависности од тога да ли стоје самостално или су везани за неки други харф. Додатно, ако су везани, разликују се облици по месту - почетак, средина или крај.
+
+Нема разлике између великих и малих слова.
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/001 Основа/лекција.md
+======================================
+
+>>> PUTANJA: ./app/src/main/assets/lekcije/001 Основа/квиз.md
+--------------------------------------
+1. Назив за слово арапског писма је:
+	1. харф
+	2. келимех
+	3. фетха
+2. Арапско писмо се чита:
+	1. са десна на лево
+	2. са лева на десно
+	3. одозго на доле
+3. Харфови означавају:
+	1. сугласнике
+	2. самогласнике
+	3. сугласнике и самогласнике
+4. У арапском језику:
+	1. не постоје разлике између великих и малих слова
+	2. постоје велика и мала слова
+5. Самогласници се означавају посебним знаковима који се пишу:
+	1. изнад или испод харфа
+	2. испред харфа
+	3. иза харфа
+
+<<< KRAJ FAJLA: ./app/src/main/assets/lekcije/001 Основа/квиз.md
+======================================
+
+>>> PUTANJA: ./app/build.gradle.kts
+--------------------------------------
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.dino.sufara"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.dino.sufara"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    
+    buildFeatures {
+        compose = true
+    }
+    
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+    
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation(project(":core:designsystem"))
+    implementation(project(":feature:lesson"))
+
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.navigation.compose)
+    
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+
+}
+
+<<< KRAJ FAJLA: ./app/build.gradle.kts
+======================================

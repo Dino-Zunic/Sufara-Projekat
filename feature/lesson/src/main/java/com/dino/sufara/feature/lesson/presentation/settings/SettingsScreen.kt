@@ -65,7 +65,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
         Slider(
             value = settings.cyrillicSizeMultiplier,
             onValueChange = { actions.updateCyrillicSize(it) },
-            valueRange = 0.8f..2.0f
+            valueRange = 0.6f..1.5f // СМАЊЕН И ПОМЕРЕН ОПСЕГ
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -87,7 +87,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
         Slider(
             value = settings.arabicSizeMultiplier,
             onValueChange = { actions.updateArabicSize(it) },
-            valueRange = 0.8f..3.0f 
+            valueRange = 0.6f..2.0f // СМАЊЕН И ПОМЕРЕН ОПСЕГ
         )
     }
 }
