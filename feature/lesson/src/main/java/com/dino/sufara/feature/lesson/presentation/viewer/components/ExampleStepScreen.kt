@@ -22,6 +22,8 @@ import com.dino.sufara.feature.lesson.domain.model.LessonStep
 @Composable
 fun ExampleStepScreen(
     step: LessonStep.Example,
+    lessonId: String, // НОВО: Примамо ID
+    symbol: String,
     onNextClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -40,10 +42,12 @@ fun ExampleStepScreen(
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 SufaraText(
                     text = step.text,
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.wrapContentSize(unbounded = true), 
                     baseFontSize = 32.sp,
                     arabicFontSize = 100.sp,
-                    lineHeight = 120.sp
+                    lineHeight = 180.sp, 
+                    lessonId = lessonId, // ПРОСЛЕЂУЈЕМО ID
+                    symbol = symbol
                 )
             }
         }
@@ -55,9 +59,7 @@ fun ExampleStepScreen(
                 .size(64.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary)
-                .clickable {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                },
+                .clickable { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.PlayArrow, contentDescription = "Звук", tint = Color.White, modifier = Modifier.size(32.dp))

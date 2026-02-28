@@ -10,20 +10,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings // ИСПРАВЉЕН ИМПОРТ
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun QuizStepScreen(
     step: LessonStep.Quiz,
+    stepIndex: Int, 
     onNextClick: () -> Unit
 ) {
-    var attemptCount by remember { mutableIntStateOf(0) } // Пратимо број покушаја
+    var attemptCount by remember { mutableIntStateOf(0) }
 
-    key(step.question, attemptCount) { // Ресетује UI кад се повећа attemptCount!
+    key(stepIndex, attemptCount) { 
         val shuffledAnswers = remember { step.answers.shuffled() }
         var selectedAnswer by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
+        val settings = LocalSufaraSettings.current // ИСПРАВЉЕН ПОЗИВ
 
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
@@ -47,7 +50,7 @@ fun QuizStepScreen(
                             .clickable(enabled = !hasAnswered) {
                                 selectedAnswer = answer
                                 if (answer == step.correctAnswer) {
-                                    scope.launch { delay(1000); onNextClick() } // Браво, иди даље!
+                                    scope.launch { delay(1000); onNextClick() } 
                                 }
                             },
                         colors = CardDefaults.cardColors(containerColor = containerColor)
@@ -55,16 +58,27 @@ fun QuizStepScreen(
                         SufaraText(text = answer, modifier = Modifier.padding(16.dp))
                     }
                 }
+
+                // ДУГМЕ ЗА ПРЕСКАКАЊЕ (Приказује се само ако је Debug мод укључен)
+                if (settings.isDebugMode) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = onNextClick, 
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("ПРЕСКОЧИ КВИЗ (Debug)")
+                    }
+                }
             }
 
-            // Грешка? Клик било где РЕСЕТУЈЕ питање
             if (selectedAnswer != null && selectedAnswer != step.correctAnswer) {
                 Box(
                     modifier = Modifier.fillMaxSize().clickable(
                         interactionSource = remember { MutableInteractionSource() }, indication = null
                     ) {
                         selectedAnswer = null
-                        attemptCount++ // Ово покреће shuffle из почетка!
+                        attemptCount++ 
                     }
                 ) {
                     Text(

@@ -9,16 +9,18 @@ import java.io.FileNotFoundException
 
 class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara.feature.lesson.domain.repository.LessonRepository {
 
+    // Pomoćna funkcija za čitanje simbola iz fajla
+    private fun getSymbols(): List<String> {
+        return try {
+            context.assets.open("lekcije/симболи.md").bufferedReader().use { it.readText() }
+        } catch (e: Exception) { "" }.lines().filter { it.isNotBlank() }
+    }
+
     override suspend fun getAllLessons(): List<Lesson> = withContext(Dispatchers.IO) {
         val allAssets = context.assets.list("lekcije") ?: emptyArray()
-        
-        // Читамо симболи.md глобално
-        val symbolsText = try {
-            context.assets.open("lekcije/симболи.md").bufferedReader().use { it.readText() }
-        } catch (e: Exception) { "" }
-        val symbols = symbolsText.lines().filter { it.isNotBlank() }
+        val symbols = getSymbols()
 
-        // Филтрирамо само праве фолдере (који почињу бројем, нпр. "001") да не би пуцало на фајловима
+        // Filtriramo samo prave foldere (koji počinju brojem, npr. "001") da ne bi pucalo na fajlovima
         val validFolders = allAssets.filter { it.firstOrNull()?.isDigit() == true }.sorted()
 
         validFolders.mapIndexedNotNull { index, folderName ->
@@ -28,26 +30,26 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
         }
     }
 
-    // НОВО: Враћен метод који интерфејс захтева! 
-    // Овај метод тражи фолдер који почиње датим ID-јем (нпр. "001")
+    // ISPRAVKA: Ovaj metod sada traži folder i vraća tačan simbol umjesto hardkodovane knjige!
     override suspend fun getLessonById(id: String): Lesson? = withContext(Dispatchers.IO) {
-        val allAssets = context.assets.list("lekcije") ?: emptyArray()
-        val folderName = allAssets.find { it.startsWith("$id ") || it == id } ?: return@withContext null
+        // Izvlačimo samo broj lekcije (npr. "004") u slučaju da je proslijeđen cijeli naziv
+        val numericId = id.substringBefore(" ") 
         
-        parseLessonFolder(folderName, "📖")
+        // Vraćamo lekciju koja ima sve perfektno parsirano, uključujući i pravi simbol!
+        getAllLessons().find { it.id == numericId }
     }
 
-    // ПРЕИМЕНОВАНО: Ово је наша логика за читање фајлова
+    // Ovo je naša logika za čitanje fajlova
     private suspend fun parseLessonFolder(folderName: String, symbol: String): Lesson? = withContext(Dispatchers.IO) {
         try {
             val basePath = "lekcije/$folderName"
             val steps = mutableListOf<LessonStep>()
 
             val lekcijaText = readFile(basePath, "лекција.md")
-            val dodatakText = readFile(basePath, "додатак.md") // Читамо додатак унапред
+            val dodatakText = readFile(basePath, "додатак.md") // Čitamo dodatak unaprijed
 
             if (lekcijaText != null) {
-                // Пакујемо лекцију и додатак заједно
+                // Pakujemo lekciju i dodatak zajedno
                 steps.add(LessonStep.Theory("Теорија", lekcijaText, dodatakText))
                 
                 if (context.assets.list(basePath)?.contains("исходиште.png") == true) {

@@ -25,7 +25,6 @@ fun LessonViewerScreen(
     val lesson by viewModel.lesson.collectAsState()
     val currentIndex by viewModel.currentIndex.collectAsState()
 
-    // Спречавамо светлуцање (White screen flash)
     if (lesson == null) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -35,20 +34,15 @@ fun LessonViewerScreen(
 
     val steps = lesson!!.steps
     if (steps.isEmpty()) {
-        onNavigateBack() // Ако лекција нема ништа, само се врати
+        onNavigateBack()
         return
     }
 
     val currentStep = steps[currentIndex]
     val progress = (currentIndex + 1).toFloat() / steps.size.toFloat()
 
-    // НОВО: Јединствена логика за прелазак на следећи корак или излазак
     val handleNextStep = {
-        if (currentIndex == steps.size - 1) {
-            onNavigateBack() // Крај лекције!
-        } else {
-            viewModel.nextStep()
-        }
+        if (currentIndex == steps.size - 1) onNavigateBack() else viewModel.nextStep()
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -71,10 +65,10 @@ fun LessonViewerScreen(
         }
 
         when (currentStep) {
-            is LessonStep.Theory -> TheoryStepScreen(step = currentStep, onNextClick = handleNextStep)
+            is LessonStep.Theory -> TheoryStepScreen(step = currentStep, lessonId = lesson!!.id, symbol = lesson!!.symbol, onNextClick = handleNextStep)
             is LessonStep.ImageInfo -> ImageInfoStepScreen(step = currentStep, onNextClick = handleNextStep)
-            is LessonStep.Quiz -> QuizStepScreen(step = currentStep, onNextClick = handleNextStep)
-            is LessonStep.Example -> ExampleStepScreen(step = currentStep, onNextClick = handleNextStep)
+            is LessonStep.Quiz -> QuizStepScreen(step = currentStep, stepIndex = currentIndex, onNextClick = handleNextStep)
+            is LessonStep.Example -> ExampleStepScreen(step = currentStep, lessonId = lesson!!.id, symbol = lesson!!.symbol, onNextClick = handleNextStep)
         }
     }
 }

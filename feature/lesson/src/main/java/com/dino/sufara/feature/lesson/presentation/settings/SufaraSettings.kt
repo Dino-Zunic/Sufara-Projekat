@@ -6,9 +6,10 @@ import androidx.compose.ui.platform.LocalContext
 
 data class SufaraSettingsState(
     val cyrillicFont: String = "Lora",
-    val arabicFont: String = "Noto Naskh", // Promijenjen default
+    val arabicFont: String = "Noto Naskh",
     val cyrillicSizeMultiplier: Float = 1.0f,
-    val arabicSizeMultiplier: Float = 1.0f
+    val arabicSizeMultiplier: Float = 1.0f,
+    val isDebugMode: Boolean = true
 )
 
 interface SufaraSettingsActions {
@@ -16,6 +17,7 @@ interface SufaraSettingsActions {
     fun updateArabicFont(name: String)
     fun updateCyrillicSize(size: Float)
     fun updateArabicSize(size: Float)
+    fun toggleDebugMode(enabled: Boolean)
 }
 
 val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
@@ -27,12 +29,12 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
     val prefs = remember { context.getSharedPreferences("sufara_prefs", Context.MODE_PRIVATE) }
 
     var cyrillicFont by remember { mutableStateOf(prefs.getString("cyr_font", "Lora") ?: "Lora") }
-    // Ovdje također postavljen Noto Naskh kao fallback
     var arabicFont by remember { mutableStateOf(prefs.getString("ar_font", "Noto Naskh") ?: "Noto Naskh") } 
-    var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f)) }
-    var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f)) }
+    var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f).coerceIn(0.6f, 1.5f)) }
+    var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f).coerceIn(0.6f, 2.0f)) }
+    var isDebugMode by remember { mutableStateOf(prefs.getBoolean("debug_mode", true)) }
 
-    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize)
+    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode)
 
     val actions = object : SufaraSettingsActions {
         override fun updateCyrillicFont(name: String) {
@@ -50,6 +52,10 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
         override fun updateArabicSize(size: Float) {
             arabicSize = size
             prefs.edit().putFloat("ar_size", size).apply()
+        }
+        override fun toggleDebugMode(enabled: Boolean) {
+            isDebugMode = enabled
+            prefs.edit().putBoolean("debug_mode", enabled).apply()
         }
     }
 

@@ -14,7 +14,7 @@ import com.dino.sufara.feature.lesson.presentation.viewer.components.SufaraText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
+fun SettingsScreen(onNavigateBack: () -> Unit) { 
     val settings = LocalSufaraSettings.current
     val actions = LocalSufaraSettingsActions.current
 
@@ -24,7 +24,6 @@ fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
             .padding(24.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // GORNJA TRAKA SA DUGMETOM NAZAD
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = MaterialTheme.colorScheme.primary)
@@ -34,7 +33,6 @@ fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
         }
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 1. LIVE PREVIEW
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -65,7 +63,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
         Slider(
             value = settings.cyrillicSizeMultiplier,
             onValueChange = { actions.updateCyrillicSize(it) },
-            valueRange = 0.6f..1.5f // СМАЊЕН И ПОМЕРЕН ОПСЕГ
+            valueRange = 0.6f..1.5f
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -87,7 +85,18 @@ fun SettingsScreen(onNavigateBack: () -> Unit) { // Dodana funkcija za povratak
         Slider(
             value = settings.arabicSizeMultiplier,
             onValueChange = { actions.updateArabicSize(it) },
-            valueRange = 0.6f..2.0f // СМАЊЕН И ПОМЕРЕН ОПСЕГ
+            valueRange = 0.6f..2.0f 
         )
+
+        // НОВИ ДЕО: Прекидач за Дебуг мод
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("Развој", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Debug Mod (Омогућава прескакање квиза)", color = MaterialTheme.colorScheme.onSurface)
+            Switch(checked = settings.isDebugMode, onCheckedChange = { actions.toggleDebugMode(it) })
+        }
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }

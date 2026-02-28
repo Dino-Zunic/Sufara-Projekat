@@ -1,7 +1,6 @@
 package com.dino.sufara.feature.lesson.presentation.viewer.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -15,10 +14,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dino.sufara.feature.lesson.domain.util.HarfHighlighter
+import com.dino.sufara.feature.lesson.domain.util.HighlightAction
+import com.dino.sufara.feature.lesson.domain.util.HighlightType
+import com.dino.sufara.feature.lesson.domain.util.SufaraLogger
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
 
-// 1. Структура за одвајање пасуса од груписаних примера
 sealed class TextBlock {
     data class Paragraph(val text: String) : TextBlock()
     data class ExampleGroup(val examples: List<String>) : TextBlock()
@@ -30,26 +32,24 @@ fun SufaraText(
     text: String,
     modifier: Modifier = Modifier,
     color: Color = Color.White,
-    baseFontSize: TextUnit = 16.sp, // СМАЊЕН почетни фонт ћирилице
+    baseFontSize: TextUnit = 16.sp, 
     arabicFontSize: TextUnit = 32.sp,
-    lineHeight: TextUnit = 28.sp // Прилагођен проред
+    lineHeight: TextUnit = 28.sp,
+    lessonId: String = "",
+    symbol: String = ""
 ) {
     val settings = LocalSufaraSettings.current
-    
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
     val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
     
     val finalBaseSize = baseFontSize * settings.cyrillicSizeMultiplier
     val finalArabicSize = arabicFontSize * settings.arabicSizeMultiplier
-    val finalLineHeight = lineHeight * maxOf(settings.cyrillicSizeMultiplier, settings.arabicSizeMultiplier)
+    val finalLineHeight = lineHeight * maxOf(settings.cyrillicSizeMultiplier, settings.arabicSizeMultiplier * 1.5f)
 
-    // Regex детекција:
-    // cyrillicLatinRegex тражи БИЛО КОЈЕ слово српског/енглеског алфабета
     val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏ]") }
-    // arabicRegex тражи арапска слова (ово обухвата и ташдид, сукун, итд.)
     val arabicRegex = remember { Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+") }
+    val globalType = remember(lessonId) { HarfHighlighter.getLessonType(lessonId) }
 
-    // 2. Парсирање сировог текста у блокове
     val blocks = remember(text) {
         val result = mutableListOf<TextBlock>()
         val currentGroup = mutableListOf<String>()
@@ -61,7 +61,6 @@ fun SufaraText(
                 currentParagraphLines.clear()
             }
         }
-
         fun flushGroup() {
             if (currentGroup.isNotEmpty()) {
                 result.add(TextBlock.ExampleGroup(currentGroup.toList()))
@@ -70,17 +69,12 @@ fun SufaraText(
         }
 
         text.lines().forEach { line ->
-            // ЛОГИКА: Линија је засебан пример ако ИМА арапски, а НЕМА ћирилицу/латиницу
-            // (Ово значи да ће цртице, зарези и бројеви у тој линији бити уредно прихваћени)
-            val isStandaloneArabic = line.isNotBlank() && 
-                                     arabicRegex.containsMatchIn(line) && 
-                                     !cyrillicLatinRegex.containsMatchIn(line)
-
+            val isStandaloneArabic = line.isNotBlank() && arabicRegex.containsMatchIn(line) && !cyrillicLatinRegex.containsMatchIn(line)
             if (isStandaloneArabic) {
-                flushParagraph() // Затвори обичан текст ако смо га читали
+                flushParagraph()
                 currentGroup.add(line.trim())
             } else {
-                flushGroup() // Затвори групу примера ако смо их сакупљали
+                flushGroup()
                 currentParagraphLines.add(line)
             }
         }
@@ -89,66 +83,150 @@ fun SufaraText(
         result
     }
 
-    var globalExampleCounter = 0 // Памти тачан редни број примера у целом фајлу
+    var globalExampleCounter = 0 
 
-    // 3. Искртавање блокова на екран
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         blocks.forEach { block ->
             when (block) {
                 is TextBlock.Paragraph -> {
-                    // А. ОБИЧАН ТЕКСТ СА INLINE АРАПСКИМ (Жута боја)
-                    val annotatedString = buildAnnotatedString {
-                        val parts = block.text.split("**")
-                        parts.forEachIndexed { index, part ->
-                            val isBold = index % 2 != 0
-                            val baseStyle = SpanStyle(
-                                fontFamily = cyrillicFont,
-                                fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
-                                color = color,
-                                fontSize = finalBaseSize
-                            )
+                    val normalArabicColor = Color(0xFFFFD700) // Жута
+                    val cCyrLayer1 = if (globalType == HighlightType.HARAKAH) Color.Transparent else color
+                    val cCyrLayer2 = if (globalType == HighlightType.HARAKAH) color else Color.Transparent
 
-                            withStyle(baseStyle) {
-                                var lastIndex = 0
-                                arabicRegex.findAll(part).forEach { matchResult ->
-                                    append(part.substring(lastIndex, matchResult.range.first))
-                                    
-                                    withStyle(SpanStyle(
-                                        fontFamily = arabicFont,
-                                        fontSize = finalArabicSize, 
-                                        fontWeight = FontWeight.Normal, 
-                                        color = Color(0xFFFFD700) // ЖУТА (Hack)
-                                    )) {
-                                        append(matchResult.value)
+                    Box {
+                        // СЛОЈ 1: ПОЗАДИНА
+                        Text(
+                            lineHeight = finalLineHeight,
+                            text = buildAnnotatedString {
+                                val parts = block.text.split("**")
+                                parts.forEachIndexed { index, part ->
+                                    withStyle(SpanStyle(fontFamily = cyrillicFont, color = cCyrLayer1, fontSize = finalBaseSize, fontWeight = if (index % 2 != 0) FontWeight.Bold else FontWeight.Normal)) {
+                                        var lastIndex = 0
+                                        arabicRegex.findAll(part).forEach { matchResult ->
+                                            append(part.substring(lastIndex, matchResult.range.first))
+                                            val arabicWord = matchResult.value
+                                            val action = HarfHighlighter.analyze(arabicWord, lessonId, symbol)
+                                            
+                                            withStyle(SpanStyle(fontFamily = arabicFont, fontSize = finalArabicSize)) {
+                                                val wordStart = length
+                                                append(arabicWord)
+                                                for (i in arabicWord.indices) {
+                                                    // HARAKAH: Црвена позадина. HARF: Жута позадина (све нормално).
+                                                    val charColor = when (globalType) {
+                                                        HighlightType.HARAKAH -> {
+                                                            val isRed = action is HighlightAction.Harakah && (action.diacritics.contains(i) || action.supports.contains(i))
+                                                            if (isRed) Color.Red else Color.Transparent
+                                                        }
+                                                        else -> normalArabicColor
+                                                    }
+                                                    addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
+                                                }
+                                            }
+                                            lastIndex = matchResult.range.last + 1
+                                        }
+                                        append(part.substring(lastIndex))
                                     }
-                                    lastIndex = matchResult.range.last + 1
                                 }
-                                append(part.substring(lastIndex))
                             }
-                        }
+                        )
+
+                        // СЛОЈ 2: ПРЕДЊИ ПЛАН
+                        Text(
+                            lineHeight = finalLineHeight,
+                            text = buildAnnotatedString {
+                                val parts = block.text.split("**")
+                                parts.forEachIndexed { index, part ->
+                                    withStyle(SpanStyle(fontFamily = cyrillicFont, color = cCyrLayer2, fontSize = finalBaseSize, fontWeight = if (index % 2 != 0) FontWeight.Bold else FontWeight.Normal)) {
+                                        var lastIndex = 0
+                                        arabicRegex.findAll(part).forEach { matchResult ->
+                                            append(part.substring(lastIndex, matchResult.range.first))
+                                            val arabicWord = matchResult.value
+                                            val action = HarfHighlighter.analyze(arabicWord, lessonId, symbol)
+                                            
+                                            withStyle(SpanStyle(fontFamily = arabicFont, fontSize = finalArabicSize)) {
+                                                val wordStart = length
+                                                append(arabicWord)
+                                                for (i in arabicWord.indices) {
+                                                    // HARAKAH: Жути текст, пробушена рупа за црвени харекет.
+                                                    // HARF: Све провидно ОСИМ слова (харфа) које је црвено.
+                                                    val charColor = when (globalType) {
+                                                        HighlightType.HARAKAH -> {
+                                                            val isHole = action is HighlightAction.Harakah && action.diacritics.contains(i)
+                                                            if (isHole) Color.Transparent else normalArabicColor
+                                                        }
+                                                        else -> {
+                                                            val isTargetHarf = action is HighlightAction.Harf && action.characters.contains(i)
+                                                            if (isTargetHarf) Color.Red else Color.Transparent
+                                                        }
+                                                    }
+                                                    addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
+                                                }
+                                            }
+                                            lastIndex = matchResult.range.last + 1
+                                        }
+                                        append(part.substring(lastIndex))
+                                    }
+                                }
+                            }
+                        )
                     }
-                    Text(text = annotatedString, lineHeight = finalLineHeight)
                 }
                 
                 is TextBlock.ExampleGroup -> {
-                    // Б. ИЗДВОЈЕНИ ПРИМЕРИ У НИЗУ (Наранџаста боја)
+                    val normalArabicColor = Color(0xFFE58F65) // Наранџаста
+
                     FlowRow(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         block.examples.forEach { exampleText ->
-                            val currentIndex = globalExampleCounter++ // ОВДЕ ЈЕ САЧУВАН ЊЕГОВ РЕДНИ БРОЈ ЗА ЗВУК!
+                            val currentIndex = globalExampleCounter++ 
+                            val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
                             
-                            Text(
-                                text = exampleText,
-                                fontFamily = arabicFont,
-                                fontSize = finalArabicSize * 1.2f, // Мало већи од inline текста
-                                color = Color(0xFFE58F65) // НАРАНЏАСТА (Hack)
-                            )
+                            Box {
+                                // СЛОЈ 1: ПОЗАДИНА
+                                Text(
+                                    fontFamily = arabicFont,
+                                    fontSize = finalArabicSize * 1.2f,
+                                    text = buildAnnotatedString {
+                                        val wordStart = length
+                                        append(exampleText)
+                                        for (i in exampleText.indices) {
+                                            val charColor = when (globalType) {
+                                                HighlightType.HARAKAH -> {
+                                                    val isRed = action is HighlightAction.Harakah && (action.diacritics.contains(i) || action.supports.contains(i))
+                                                    if (isRed) Color.Red else Color.Transparent
+                                                }
+                                                else -> normalArabicColor
+                                            }
+                                            addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
+                                        }
+                                    }
+                                )
+                                // СЛОЈ 2: ПРЕДЊИ ПЛАН
+                                Text(
+                                    fontFamily = arabicFont,
+                                    fontSize = finalArabicSize * 1.2f,
+                                    text = buildAnnotatedString {
+                                        val wordStart = length
+                                        append(exampleText)
+                                        for (i in exampleText.indices) {
+                                            val charColor = when (globalType) {
+                                                HighlightType.HARAKAH -> {
+                                                    val isHole = action is HighlightAction.Harakah && action.diacritics.contains(i)
+                                                    if (isHole) Color.Transparent else normalArabicColor
+                                                }
+                                                else -> {
+                                                    val isTargetHarf = action is HighlightAction.Harf && action.characters.contains(i)
+                                                    if (isTargetHarf) Color.Red else Color.Transparent
+                                                }
+                                            }
+                                            addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                 }

@@ -1,7 +1,6 @@
 package com.dino.sufara.feature.lesson.presentation.viewer.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +19,8 @@ import com.dino.sufara.feature.lesson.domain.model.LessonStep
 @Composable
 fun TheoryStepScreen(
     step: LessonStep.Theory,
+    lessonId: String, // НОВО: Примамо ID
+    symbol: String,
     onNextClick: () -> Unit
 ) {
     var isDodatakExpanded by remember { mutableStateOf(false) }
@@ -32,9 +33,9 @@ fun TheoryStepScreen(
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
-        SufaraText(text = step.text)
+        // ПРОСЛЕЂУЈЕМО ИД И СИМБОЛ
+        SufaraText(text = step.text, lessonId = lessonId, symbol = symbol)
 
-        // Суптилни додатак (Toggle)
         if (step.dodatakText != null) {
             Spacer(modifier = Modifier.height(32.dp))
             Card(
@@ -50,7 +51,8 @@ fun TheoryStepScreen(
                     AnimatedVisibility(visible = isDodatakExpanded) {
                         Column {
                             Spacer(modifier = Modifier.height(16.dp))
-                            SufaraText(text = step.dodatakText, color = Color.LightGray)
+                            // ПРОСЛЕЂУЈЕМО И ОВДЕ
+                            SufaraText(text = step.dodatakText, color = Color.LightGray, lessonId = lessonId, symbol = symbol)
                         }
                     }
                 }
