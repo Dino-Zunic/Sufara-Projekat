@@ -4,12 +4,18 @@ import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 
+enum class BodyTextColorTheme { PARCHMENT, SILVER, MUTED_GOLD }
+// НОВО: Опције за боју сјаја
+enum class GlowColorTheme { GOLD, AZURE, PURPLE, NONE }
+
 data class SufaraSettingsState(
     val cyrillicFont: String = "Lora",
     val arabicFont: String = "Noto Naskh",
     val cyrillicSizeMultiplier: Float = 1.0f,
     val arabicSizeMultiplier: Float = 1.0f,
-    val isDebugMode: Boolean = true
+    val isDebugMode: Boolean = true,
+    val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER, // Ставио сам Silver као подразумевано!
+    val glowColorTheme: GlowColorTheme = GlowColorTheme.AZURE // НОВО
 )
 
 interface SufaraSettingsActions {
@@ -18,6 +24,8 @@ interface SufaraSettingsActions {
     fun updateCyrillicSize(size: Float)
     fun updateArabicSize(size: Float)
     fun toggleDebugMode(enabled: Boolean)
+    fun updateBodyTextColor(theme: BodyTextColorTheme)
+    fun updateGlowColor(theme: GlowColorTheme) // НОВО
 }
 
 val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
@@ -33,8 +41,17 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
     var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f).coerceIn(0.6f, 1.5f)) }
     var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f).coerceIn(0.6f, 2.0f)) }
     var isDebugMode by remember { mutableStateOf(prefs.getBoolean("debug_mode", true)) }
+    
+    var bodyTextColorTheme by remember { 
+        mutableStateOf(BodyTextColorTheme.valueOf(prefs.getString("body_color_theme", BodyTextColorTheme.SILVER.name) ?: BodyTextColorTheme.SILVER.name)) 
+    }
+    
+    // Учитавање Glow теме
+    var glowColorTheme by remember {
+        mutableStateOf(GlowColorTheme.valueOf(prefs.getString("glow_color_theme", GlowColorTheme.AZURE.name) ?: GlowColorTheme.AZURE.name))
+    }
 
-    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode)
+    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode, bodyTextColorTheme, glowColorTheme)
 
     val actions = object : SufaraSettingsActions {
         override fun updateCyrillicFont(name: String) {
@@ -56,6 +73,14 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
         override fun toggleDebugMode(enabled: Boolean) {
             isDebugMode = enabled
             prefs.edit().putBoolean("debug_mode", enabled).apply()
+        }
+        override fun updateBodyTextColor(theme: BodyTextColorTheme) {
+            bodyTextColorTheme = theme
+            prefs.edit().putString("body_color_theme", theme.name).apply()
+        }
+        override fun updateGlowColor(theme: GlowColorTheme) {
+            glowColorTheme = theme
+            prefs.edit().putString("glow_color_theme", theme.name).apply()
         }
     }
 
