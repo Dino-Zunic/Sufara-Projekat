@@ -107,4 +107,12 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
         }
         return quizzes
     }
+
+    override suspend fun getFunFacts(): List<String> = withContext(Dispatchers.IO) {
+        try {
+            context.assets.open("lekcije/cinjenice.md").bufferedReader().readLines().filter { it.isNotBlank() }
+        } catch (e: Exception) {
+            listOf("Учи у име Господара твога који ствара...") // Сигурносна порука ако фајл фали
+        }
+    }
 }

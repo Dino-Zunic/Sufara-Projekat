@@ -20,8 +20,9 @@ fun SufaraNavGraph(repository: LessonRepository) {
     NavHost(navController = navController, startDestination = "main_menu") {
         composable("main_menu") {
             MainMenuScreen(
+                repository = repository, // НОВО: Прослеђујемо репозиторијум
                 onStartClick = { navController.navigate("lesson_grid") },
-                onSettingsClick = { navController.navigate("settings") } // Vodi na settings ekran
+                onSettingsClick = { navController.navigate("settings") }
             )
         }
         
