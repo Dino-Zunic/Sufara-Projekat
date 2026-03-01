@@ -15,7 +15,8 @@ data class SufaraSettingsState(
     val isDebugMode: Boolean = true,
     val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER,
     val glowColorTheme: GlowColorTheme = GlowColorTheme.AZURE,
-    val isCyrillic: Boolean = false
+    val isCyrillic: Boolean = false,
+    val showIpa: Boolean = true
 )
 
 interface SufaraSettingsActions {
@@ -26,7 +27,8 @@ interface SufaraSettingsActions {
     fun toggleDebugMode(enabled: Boolean)
     fun updateBodyTextColor(theme: BodyTextColorTheme)
     fun updateGlowColor(theme: GlowColorTheme)
-    fun updateScript(isCyrillic: Boolean) // НОВО
+    fun updateScript(isCyrillic: Boolean)
+    fun toggleIpa(enabled: Boolean)
 }
 
 val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
@@ -42,6 +44,7 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
     var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f).coerceIn(0.6f, 1.5f)) }
     var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f).coerceIn(0.6f, 2.0f)) }
     var isDebugMode by remember { mutableStateOf(prefs.getBoolean("debug_mode", true)) }
+    var showIpa by remember { mutableStateOf(prefs.getBoolean("show_ipa", true)) }
     
     var bodyTextColorTheme by remember { 
         mutableStateOf(BodyTextColorTheme.valueOf(prefs.getString("body_color_theme", BodyTextColorTheme.SILVER.name) ?: BodyTextColorTheme.SILVER.name)) 
@@ -53,7 +56,7 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
 
     var isCyrillic by remember { mutableStateOf(prefs.getBoolean("is_cyrillic", false)) }
 
-    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode, bodyTextColorTheme, glowColorTheme, isCyrillic)
+    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode, bodyTextColorTheme, glowColorTheme, isCyrillic, showIpa)
 
     val actions = object : SufaraSettingsActions {
         override fun updateCyrillicFont(name: String) {
@@ -87,6 +90,10 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
         override fun updateScript(cyrillic: Boolean) {
             isCyrillic = cyrillic
             prefs.edit().putBoolean("is_cyrillic", cyrillic).apply()
+        }
+        override fun toggleIpa(enabled: Boolean) {
+            showIpa = enabled
+            prefs.edit().putBoolean("show_ipa", enabled).apply()
         }
     }
 

@@ -121,7 +121,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Amiri", "Noto Naskh").forEach { font ->
+            listOf("Amiri", "Noto Naskh", "KFGQPC").forEach { font ->
                 FilterChip(
                     selected = settings.arabicFont == font,
                     onClick = { actions.updateArabicFont(font) },

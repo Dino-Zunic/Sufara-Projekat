@@ -24,6 +24,10 @@ object SufaraFonts {
         Font(R.font.noto_naskh_arabic_regular, FontWeight.Normal)
     )
 
+    val Kfgqpc = FontFamily(
+        Font(R.font.kfgqpc, FontWeight.Normal)
+    )
+
     fun getCyrillicFont(name: String): FontFamily = when(name) {
         "Roboto Slab" -> RobotoSlab
         else -> Lora
@@ -31,6 +35,7 @@ object SufaraFonts {
 
     fun getArabicFont(name: String): FontFamily = when(name) {
         "Noto Naskh" -> NotoNaskh
+        "KFGQPC" -> Kfgqpc
         else -> Amiri
     }
 }
