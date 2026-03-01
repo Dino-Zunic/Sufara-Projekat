@@ -11,10 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.domain.util.asScript
 
 @Composable
 fun TheoryStepScreen(
@@ -26,9 +26,8 @@ fun TheoryStepScreen(
     var isDodatakExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState())) {
-        // НОВО: Наслов сада користи secondary (Златну) боју, уместо плаве
         Text(
-            text = step.title,
+            text = step.title.asScript(),
             fontSize = 28.sp,
             color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.padding(bottom = 24.dp)
@@ -44,15 +43,13 @@ fun TheoryStepScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // НОВО: Икона и текст додатка су такође златни
                         Icon(Icons.Default.Info, contentDescription = "Инфо", tint = MaterialTheme.colorScheme.secondary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Занимљивости (Кликни да отвориш)", color = MaterialTheme.colorScheme.secondary)
+                        Text("Занимљивости (Кликни да отвориш)".asScript(), color = MaterialTheme.colorScheme.secondary)
                     }
                     AnimatedVisibility(visible = isDodatakExpanded) {
                         Column {
                             Spacer(modifier = Modifier.height(16.dp))
-                            // ИСПРАВКА ЗА БИЛД: Обрисан хардкодован 'color = Color.LightGray'
                             SufaraText(text = step.dodatakText, lessonId = lessonId, symbol = symbol)
                         }
                     }
@@ -70,7 +67,7 @@ fun TheoryStepScreen(
                 contentColor = MaterialTheme.colorScheme.onPrimary
             )
         ) {
-            Text("Даље", fontSize = 18.sp)
+            Text("Даље".asScript(), fontSize = 18.sp)
         }
     }
 }

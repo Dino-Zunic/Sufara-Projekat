@@ -18,11 +18,12 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.domain.util.asScript
 
 @Composable
 fun ExampleStepScreen(
     step: LessonStep.Example,
-    lessonId: String, // НОВО: Примамо ID
+    lessonId: String, 
     symbol: String,
     onNextClick: () -> Unit
 ) {
@@ -46,7 +47,7 @@ fun ExampleStepScreen(
                     baseFontSize = 32.sp,
                     arabicFontSize = 100.sp,
                     lineHeight = 180.sp, 
-                    lessonId = lessonId, // ПРОСЛЕЂУЈЕМО ID
+                    lessonId = lessonId, 
                     symbol = symbol
                 )
             }
@@ -68,7 +69,7 @@ fun ExampleStepScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         Button(onClick = onNextClick, modifier = Modifier.fillMaxWidth()) {
-            Text("Даље")
+            Text("Даље".asScript())
         }
     }
 }

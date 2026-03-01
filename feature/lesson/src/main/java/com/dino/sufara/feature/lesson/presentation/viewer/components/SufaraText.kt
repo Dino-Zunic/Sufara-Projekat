@@ -24,6 +24,7 @@ import com.dino.sufara.core.designsystem.*
 import com.dino.sufara.feature.lesson.domain.util.HarfHighlighter
 import com.dino.sufara.feature.lesson.domain.util.HighlightAction
 import com.dino.sufara.feature.lesson.domain.util.HighlightType
+import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.GlowColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
@@ -48,6 +49,9 @@ fun SufaraText(
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
     val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
     
+    // НОВО: Преводимо комплетан текст у одабрано писмо
+    val scriptText = text.asScript()
+    
     val finalBaseSize = baseFontSize * settings.cyrillicSizeMultiplier
     val finalArabicSize = arabicFontSize * settings.arabicSizeMultiplier
     val finalLineHeight = lineHeight * maxOf(settings.cyrillicSizeMultiplier, settings.arabicSizeMultiplier * 1.5f)
@@ -68,11 +72,12 @@ fun SufaraText(
     val textGlow = remember(glowColor) { Shadow(color = glowColor, blurRadius = 14f) }
     val redGlow = remember { Shadow(color = MoltenRed.copy(alpha = 0.6f), blurRadius = 16f) }
 
-    val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏ]") }
+    // НОВО: Додата латинична слова (čćžšđ) у Регекс!
+    val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏčćžšđČĆŽŠĐ]+") }
     val arabicRegex = remember { Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+") }
     val globalType = remember(lessonId) { HarfHighlighter.getLessonType(lessonId) }
 
-    val blocks = remember(text) {
+    val blocks = remember(scriptText) {
         val result = mutableListOf<TextBlock>()
         val currentGroup = mutableListOf<String>()
         val currentParagraphLines = mutableListOf<String>()
@@ -90,7 +95,7 @@ fun SufaraText(
             }
         }
 
-        text.lines().forEach { line ->
+        scriptText.lines().forEach { line ->
             val isStandaloneArabic = line.isNotBlank() && arabicRegex.containsMatchIn(line) && !cyrillicLatinRegex.containsMatchIn(line)
             if (isStandaloneArabic) {
                 flushParagraph()
@@ -139,19 +144,16 @@ fun SufaraText(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         block.examples.forEach { exampleText ->
-                            // НОВО: key осигурава да се стање величине не помеша између два различита примера
                             key(exampleText) {
                                 val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
                                 
-                                // НОВО: Динамички множилац величине који креће од 1.0 (100%)
                                 var scaleMultiplier by remember { mutableFloatStateOf(1f) }
                                 val currentExampleSize = finalArabicSize * 1.5f * scaleMultiplier
                                 
                                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    // СЛОЈ 1: ПОЗАДИНА
                                     Text(
                                         fontFamily = arabicFont,
-                                        fontSize = currentExampleSize, // Користимо скалирану величину
+                                        fontSize = currentExampleSize, 
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.fillMaxWidth(),
                                         text = buildAnnotatedString {
@@ -176,16 +178,13 @@ fun SufaraText(
                                             }
                                         }
                                     )
-                                    // СЛОЈ 2: ПРЕДЊИ ПЛАН
                                     Text(
                                         fontFamily = arabicFont,
-                                        fontSize = currentExampleSize, // Користимо скалирану величину
+                                        fontSize = currentExampleSize, 
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.fillMaxWidth(),
-                                        // НОВО: Аутоматска детекција преламања текста!
                                         onTextLayout = { textLayoutResult ->
                                             if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
-                                                // Ако је прешао у нови ред, смањи га за 10% и нацртај поново!
                                                 scaleMultiplier *= 0.9f
                                             }
                                         },

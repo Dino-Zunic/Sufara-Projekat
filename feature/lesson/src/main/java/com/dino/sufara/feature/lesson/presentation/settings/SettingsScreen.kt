@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.viewer.components.SufaraText
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,28 +27,46 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = MaterialTheme.colorScheme.onBackground)
+                Icon(Icons.Default.ArrowBack, contentDescription = "Назад".asScript(), tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Подешавања", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+            Text("Подешавања".asScript(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
         }
         Spacer(modifier = Modifier.height(24.dp))
+
+        // НОВО: Бирач писма
+        Text("Писмо / Script".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = !settings.isCyrillic,
+                onClick = { actions.updateScript(false) },
+                label = { Text("Latinica") }
+            )
+            FilterChip(
+                selected = settings.isCyrillic,
+                onClick = { actions.updateScript(true) },
+                label = { Text("Ћирилица") }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Приказ уживо:", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Text("Приказ уживо:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(8.dp))
-                // Убацили смо пример са харфом да се лепо види сјај
-                SufaraText(text = "Ово је ћирилица.\nА ово је арапски пример:\nبِسْمِ اللَّهِ")
+                SufaraText(text = "Ово је ћирилица.\nА ово је арапски пример:\nبِسْمِ اللَّهِ") // SufaraText сам преводи!
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
         
-        Text("Боја обичног текста", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Боја обичног текста".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -60,9 +79,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
         }
 
-        // НОВИ ДЕО: Избор боје сјаја
         Spacer(modifier = Modifier.height(24.dp))
-        Text("Боја сјаја примера (Glow)", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Боја сјаја примера (Glow)".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -77,7 +95,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Text("Ћирилица", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Фонт за текст".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -90,7 +108,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
         }
         
-        Text("Величина: ${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
+        Text("Величина: ".asScript() + "${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
         Slider(
             value = settings.cyrillicSizeMultiplier,
             onValueChange = { actions.updateCyrillicSize(it) },
@@ -99,7 +117,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Text("Арапски", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Арапски".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -112,7 +130,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
         }
 
-        Text("Величина: ${(settings.arabicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
+        Text("Величина: ".asScript() + "${(settings.arabicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
         Slider(
             value = settings.arabicSizeMultiplier,
             onValueChange = { actions.updateArabicSize(it) },
@@ -120,11 +138,11 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         )
 
         Spacer(modifier = Modifier.height(32.dp))
-        Text("Развој", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Развој".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Debug Mod (Омогућава прескакање квиза)", color = MaterialTheme.colorScheme.onBackground)
+            Text("Debug Mod (Омогућава прескакање квиза)".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Switch(checked = settings.isDebugMode, onCheckedChange = { actions.toggleDebugMode(it) })
         }
         Spacer(modifier = Modifier.height(32.dp))

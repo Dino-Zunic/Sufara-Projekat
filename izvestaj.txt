@@ -1,4 +1,4 @@
-IZVEŠTAJ O PROJEKTU - Sat 28 Feb 2026 03:02:05 PM CET
+IZVEŠTAJ O PROJEKTU - Sun 01 Mar 2026 05:55:21 AM CET
 ================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/repository/LocalAssetLessonRepository.kt
 ================================================================================
@@ -111,6 +111,14 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
         }
         return quizzes
     }
+
+    override suspend fun getFunFacts(): List<String> = withContext(Dispatchers.IO) {
+        try {
+            context.assets.open("lekcije/cinjenice.md").bufferedReader().readLines().filter { it.isNotBlank() }
+        } catch (e: Exception) {
+            listOf("Учи у име Господара твога који ствара...") // Сигурносна порука ако фајл фали
+        }
+    }
 }-e 
 
 
@@ -150,6 +158,35 @@ import com.dino.sufara.feature.lesson.domain.model.Lesson
 interface LessonRepository {
     suspend fun getAllLessons(): List<Lesson>
     suspend fun getLessonById(id: String): Lesson?
+    suspend fun getFunFacts(): List<String>
+}-e 
+
+
+================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/util/ScriptConverter.kt
+================================================================================
+package com.dino.sufara.feature.lesson.domain.util
+
+import androidx.compose.runtime.Composable
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
+
+object ScriptConverter {
+    val cyrillicToLatinMap = mapOf(
+        'А' to "A", 'Б' to "B", 'В' to "V", 'Г' to "G", 'Д' to "D", 'Ђ' to "Đ", 'Е' to "E", 'Ж' to "Ž", 'З' to "Z", 'И' to "I", 'Ј' to "J", 'К' to "K", 'Л' to "L", 'Љ' to "Lj", 'М' to "M", 'Н' to "N", 'Њ' to "Nj", 'О' to "O", 'П' to "P", 'Р' to "R", 'С' to "S", 'Т' to "T", 'Ћ' to "Ć", 'У' to "U", 'Ф' to "F", 'Х' to "H", 'Ц' to "C", 'Ч' to "Č", 'Џ' to "Dž", 'Ш' to "Š",
+        'а' to "a", 'б' to "b", 'в' to "v", 'г' to "g", 'д' to "d", 'ђ' to "đ", 'е' to "e", 'ж' to "ž", 'з' to "z", 'и' to "i", 'ј' to "j", 'к' to "k", 'л' to "l", 'љ' to "lj", 'м' to "m", 'н' to "n", 'њ' to "nj", 'о' to "o", 'п' to "p", 'р' to "r", 'с' to "s", 'т' to "t", 'ћ' to "ć", 'у' to "u", 'ф' to "f", 'х' to "h", 'ц' to "c", 'ч' to "č", 'џ' to "dž", 'ш' to "š"
+    )
+}
+
+@Composable
+fun String.asScript(): String {
+    val isCyrillic = LocalSufaraSettings.current.isCyrillic
+    if (isCyrillic) return this
+    
+    val builder = StringBuilder()
+    for (char in this) {
+        builder.append(ScriptConverter.cyrillicToLatinMap[char] ?: char.toString())
+    }
+    return builder.toString()
 }-e 
 
 
@@ -371,21 +408,29 @@ package com.dino.sufara.feature.lesson.presentation.viewer.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dino.sufara.core.designsystem.*
 import com.dino.sufara.feature.lesson.domain.util.HarfHighlighter
 import com.dino.sufara.feature.lesson.domain.util.HighlightAction
 import com.dino.sufara.feature.lesson.domain.util.HighlightType
-import com.dino.sufara.feature.lesson.domain.util.SufaraLogger
+import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
+import com.dino.sufara.feature.lesson.presentation.settings.GlowColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
 
@@ -394,13 +439,11 @@ sealed class TextBlock {
     data class ExampleGroup(val examples: List<String>) : TextBlock()
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SufaraText(
     text: String,
     modifier: Modifier = Modifier,
-    color: Color = Color.White,
-    baseFontSize: TextUnit = 16.sp, 
+    baseFontSize: TextUnit = 18.sp, 
     arabicFontSize: TextUnit = 32.sp,
     lineHeight: TextUnit = 28.sp,
     lessonId: String = "",
@@ -413,6 +456,22 @@ fun SufaraText(
     val finalBaseSize = baseFontSize * settings.cyrillicSizeMultiplier
     val finalArabicSize = arabicFontSize * settings.arabicSizeMultiplier
     val finalLineHeight = lineHeight * maxOf(settings.cyrillicSizeMultiplier, settings.arabicSizeMultiplier * 1.5f)
+
+    val bodyColor = when(settings.bodyTextColorTheme) {
+        BodyTextColorTheme.PARCHMENT -> TextParchment
+        BodyTextColorTheme.SILVER -> TextSilver
+        BodyTextColorTheme.MUTED_GOLD -> TextMutedGold
+    }
+
+    val glowColor = when(settings.glowColorTheme) {
+        GlowColorTheme.GOLD -> GoldBase.copy(alpha = 0.5f)
+        GlowColorTheme.AZURE -> Color(0xFF00BFFF).copy(alpha = 0.5f)
+        GlowColorTheme.PURPLE -> Color(0xFF9D4EDD).copy(alpha = 0.5f)
+        GlowColorTheme.NONE -> Color.Transparent
+    }
+    
+    val textGlow = remember(glowColor) { Shadow(color = glowColor, blurRadius = 14f) }
+    val redGlow = remember { Shadow(color = MoltenRed.copy(alpha = 0.6f), blurRadius = 16f) }
 
     val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏ]") }
     val arabicRegex = remember { Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+") }
@@ -451,149 +510,116 @@ fun SufaraText(
         result
     }
 
-    var globalExampleCounter = 0 
-
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         blocks.forEach { block ->
             when (block) {
                 is TextBlock.Paragraph -> {
-                    val normalArabicColor = Color(0xFFFFD700) // Жута
-                    val cCyrLayer1 = if (globalType == HighlightType.HARAKAH) Color.Transparent else color
-                    val cCyrLayer2 = if (globalType == HighlightType.HARAKAH) color else Color.Transparent
-
-                    Box {
-                        // СЛОЈ 1: ПОЗАДИНА
-                        Text(
-                            lineHeight = finalLineHeight,
-                            text = buildAnnotatedString {
-                                val parts = block.text.split("**")
-                                parts.forEachIndexed { index, part ->
-                                    withStyle(SpanStyle(fontFamily = cyrillicFont, color = cCyrLayer1, fontSize = finalBaseSize, fontWeight = if (index % 2 != 0) FontWeight.Bold else FontWeight.Normal)) {
-                                        var lastIndex = 0
-                                        arabicRegex.findAll(part).forEach { matchResult ->
-                                            append(part.substring(lastIndex, matchResult.range.first))
-                                            val arabicWord = matchResult.value
-                                            val action = HarfHighlighter.analyze(arabicWord, lessonId, symbol)
-                                            
-                                            withStyle(SpanStyle(fontFamily = arabicFont, fontSize = finalArabicSize)) {
-                                                val wordStart = length
-                                                append(arabicWord)
-                                                for (i in arabicWord.indices) {
-                                                    // HARAKAH: Црвена позадина. HARF: Жута позадина (све нормално).
-                                                    val charColor = when (globalType) {
-                                                        HighlightType.HARAKAH -> {
-                                                            val isRed = action is HighlightAction.Harakah && (action.diacritics.contains(i) || action.supports.contains(i))
-                                                            if (isRed) Color.Red else Color.Transparent
-                                                        }
-                                                        else -> normalArabicColor
-                                                    }
-                                                    addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
-                                                }
-                                            }
-                                            lastIndex = matchResult.range.last + 1
+                    Text(
+                        lineHeight = finalLineHeight,
+                        text = buildAnnotatedString {
+                            val parts = block.text.split("**")
+                            parts.forEachIndexed { index, part ->
+                                withStyle(SpanStyle(fontFamily = cyrillicFont, color = bodyColor, fontSize = finalBaseSize, fontWeight = if (index % 2 != 0) FontWeight.Bold else FontWeight.Normal)) {
+                                    var lastIndex = 0
+                                    arabicRegex.findAll(part).forEach { matchResult ->
+                                        append(part.substring(lastIndex, matchResult.range.first))
+                                        val arabicWord = matchResult.value
+                                        
+                                        withStyle(SpanStyle(fontFamily = arabicFont, fontSize = finalArabicSize, color = bodyColor)) {
+                                            append(arabicWord)
                                         }
-                                        append(part.substring(lastIndex))
+                                        lastIndex = matchResult.range.last + 1
                                     }
+                                    append(part.substring(lastIndex))
                                 }
                             }
-                        )
-
-                        // СЛОЈ 2: ПРЕДЊИ ПЛАН
-                        Text(
-                            lineHeight = finalLineHeight,
-                            text = buildAnnotatedString {
-                                val parts = block.text.split("**")
-                                parts.forEachIndexed { index, part ->
-                                    withStyle(SpanStyle(fontFamily = cyrillicFont, color = cCyrLayer2, fontSize = finalBaseSize, fontWeight = if (index % 2 != 0) FontWeight.Bold else FontWeight.Normal)) {
-                                        var lastIndex = 0
-                                        arabicRegex.findAll(part).forEach { matchResult ->
-                                            append(part.substring(lastIndex, matchResult.range.first))
-                                            val arabicWord = matchResult.value
-                                            val action = HarfHighlighter.analyze(arabicWord, lessonId, symbol)
-                                            
-                                            withStyle(SpanStyle(fontFamily = arabicFont, fontSize = finalArabicSize)) {
-                                                val wordStart = length
-                                                append(arabicWord)
-                                                for (i in arabicWord.indices) {
-                                                    // HARAKAH: Жути текст, пробушена рупа за црвени харекет.
-                                                    // HARF: Све провидно ОСИМ слова (харфа) које је црвено.
-                                                    val charColor = when (globalType) {
-                                                        HighlightType.HARAKAH -> {
-                                                            val isHole = action is HighlightAction.Harakah && action.diacritics.contains(i)
-                                                            if (isHole) Color.Transparent else normalArabicColor
-                                                        }
-                                                        else -> {
-                                                            val isTargetHarf = action is HighlightAction.Harf && action.characters.contains(i)
-                                                            if (isTargetHarf) Color.Red else Color.Transparent
-                                                        }
-                                                    }
-                                                    addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
-                                                }
-                                            }
-                                            lastIndex = matchResult.range.last + 1
-                                        }
-                                        append(part.substring(lastIndex))
-                                    }
-                                }
-                            }
-                        )
-                    }
+                        }
+                    )
                 }
                 
                 is TextBlock.ExampleGroup -> {
-                    val normalArabicColor = Color(0xFFE58F65) // Наранџаста
-
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         block.examples.forEach { exampleText ->
-                            val currentIndex = globalExampleCounter++ 
-                            val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
-                            
-                            Box {
-                                // СЛОЈ 1: ПОЗАДИНА
-                                Text(
-                                    fontFamily = arabicFont,
-                                    fontSize = finalArabicSize * 1.2f,
-                                    text = buildAnnotatedString {
-                                        val wordStart = length
-                                        append(exampleText)
-                                        for (i in exampleText.indices) {
-                                            val charColor = when (globalType) {
-                                                HighlightType.HARAKAH -> {
-                                                    val isRed = action is HighlightAction.Harakah && (action.diacritics.contains(i) || action.supports.contains(i))
-                                                    if (isRed) Color.Red else Color.Transparent
+                            // НОВО: key осигурава да се стање величине не помеша између два различита примера
+                            key(exampleText) {
+                                val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
+                                
+                                // НОВО: Динамички множилац величине који креће од 1.0 (100%)
+                                var scaleMultiplier by remember { mutableFloatStateOf(1f) }
+                                val currentExampleSize = finalArabicSize * 1.5f * scaleMultiplier
+                                
+                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                    // СЛОЈ 1: ПОЗАДИНА
+                                    Text(
+                                        fontFamily = arabicFont,
+                                        fontSize = currentExampleSize, // Користимо скалирану величину
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        text = buildAnnotatedString {
+                                            val wordStart = length
+                                            append(exampleText)
+                                            for (i in exampleText.indices) {
+                                                val isRedLayer1 = when (globalType) {
+                                                    HighlightType.HARAKAH -> action is HighlightAction.Harakah && (action.diacritics.contains(i) || action.supports.contains(i))
+                                                    else -> false
                                                 }
-                                                else -> normalArabicColor
-                                            }
-                                            addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
-                                        }
-                                    }
-                                )
-                                // СЛОЈ 2: ПРЕДЊИ ПЛАН
-                                Text(
-                                    fontFamily = arabicFont,
-                                    fontSize = finalArabicSize * 1.2f,
-                                    text = buildAnnotatedString {
-                                        val wordStart = length
-                                        append(exampleText)
-                                        for (i in exampleText.indices) {
-                                            val charColor = when (globalType) {
-                                                HighlightType.HARAKAH -> {
-                                                    val isHole = action is HighlightAction.Harakah && action.diacritics.contains(i)
-                                                    if (isHole) Color.Transparent else normalArabicColor
-                                                }
-                                                else -> {
-                                                    val isTargetHarf = action is HighlightAction.Harf && action.characters.contains(i)
-                                                    if (isTargetHarf) Color.Red else Color.Transparent
+                                                
+                                                if (isRedLayer1) {
+                                                    addStyle(SpanStyle(color = MoltenRed, shadow = redGlow), wordStart + i, wordStart + i + 1)
+                                                } else {
+                                                    val isGold = globalType == HighlightType.HARF
+                                                    if (isGold) {
+                                                        addStyle(SpanStyle(color = GoldBase, shadow = textGlow), wordStart + i, wordStart + i + 1)
+                                                    } else {
+                                                        addStyle(SpanStyle(color = Color.Transparent), wordStart + i, wordStart + i + 1)
+                                                    }
                                                 }
                                             }
-                                            addStyle(SpanStyle(color = charColor), wordStart + i, wordStart + i + 1)
                                         }
-                                    }
-                                )
+                                    )
+                                    // СЛОЈ 2: ПРЕДЊИ ПЛАН
+                                    Text(
+                                        fontFamily = arabicFont,
+                                        fontSize = currentExampleSize, // Користимо скалирану величину
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        // НОВО: Аутоматска детекција преламања текста!
+                                        onTextLayout = { textLayoutResult ->
+                                            if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
+                                                // Ако је прешао у нови ред, смањи га за 10% и нацртај поново!
+                                                scaleMultiplier *= 0.9f
+                                            }
+                                        },
+                                        text = buildAnnotatedString {
+                                            val wordStart = length
+                                            append(exampleText)
+                                            for (i in exampleText.indices) {
+                                                when (globalType) {
+                                                    HighlightType.HARAKAH -> {
+                                                        val isHole = action is HighlightAction.Harakah && action.diacritics.contains(i)
+                                                        if (isHole) {
+                                                            addStyle(SpanStyle(color = Color.Transparent), wordStart + i, wordStart + i + 1)
+                                                        } else {
+                                                            addStyle(SpanStyle(color = GoldBase, shadow = textGlow), wordStart + i, wordStart + i + 1)
+                                                        }
+                                                    }
+                                                    else -> {
+                                                        val isTargetHarf = action is HighlightAction.Harf && action.characters.contains(i)
+                                                        if (isTargetHarf) {
+                                                            addStyle(SpanStyle(color = MoltenRed, shadow = redGlow), wordStart + i, wordStart + i + 1)
+                                                        } else {
+                                                            addStyle(SpanStyle(color = Color.Transparent), wordStart + i, wordStart + i + 1)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -849,21 +875,21 @@ import com.dino.sufara.feature.lesson.domain.model.LessonStep
 @Composable
 fun TheoryStepScreen(
     step: LessonStep.Theory,
-    lessonId: String, // НОВО: Примамо ID
+    lessonId: String, 
     symbol: String,
     onNextClick: () -> Unit
 ) {
     var isDodatakExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState())) {
+        // НОВО: Наслов сада користи secondary (Златну) боју, уместо плаве
         Text(
             text = step.title,
             fontSize = 28.sp,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
-        // ПРОСЛЕЂУЈЕМО ИД И СИМБОЛ
         SufaraText(text = step.text, lessonId = lessonId, symbol = symbol)
 
         if (step.dodatakText != null) {
@@ -874,15 +900,16 @@ fun TheoryStepScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = "Инфо", tint = MaterialTheme.colorScheme.primary)
+                        // НОВО: Икона и текст додатка су такође златни
+                        Icon(Icons.Default.Info, contentDescription = "Инфо", tint = MaterialTheme.colorScheme.secondary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Занимљивости (Кликни да отвориш)", color = MaterialTheme.colorScheme.primary)
+                        Text("Занимљивости (Кликни да отвориш)", color = MaterialTheme.colorScheme.secondary)
                     }
                     AnimatedVisibility(visible = isDodatakExpanded) {
                         Column {
                             Spacer(modifier = Modifier.height(16.dp))
-                            // ПРОСЛЕЂУЈЕМО И ОВДЕ
-                            SufaraText(text = step.dodatakText, color = Color.LightGray, lessonId = lessonId, symbol = symbol)
+                            // ИСПРАВКА ЗА БИЛД: Обрисан хардкодован 'color = Color.LightGray'
+                            SufaraText(text = step.dodatakText, lessonId = lessonId, symbol = symbol)
                         }
                     }
                 }
@@ -894,7 +921,10 @@ fun TheoryStepScreen(
         Button(
             onClick = onNextClick,
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         ) {
             Text("Даље", fontSize = 18.sp)
         }
@@ -957,27 +987,40 @@ PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentat
 ================================================================================
 package com.dino.sufara.feature.lesson.presentation.grid
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dino.sufara.core.designsystem.TextMutedGold
+import com.dino.sufara.core.designsystem.TextParchment
+import com.dino.sufara.core.designsystem.TextSilver
 import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+import kotlin.math.hypot
+import kotlin.math.sin
 
 @Composable
 fun LessonGridScreen(
@@ -985,53 +1028,218 @@ fun LessonGridScreen(
     onLessonClick: (String) -> Unit
 ) {
     val lessons by viewModel.lessons.collectAsState()
+    val settings = LocalSufaraSettings.current
+    var showTrajectory by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-    ) {
-        items(lessons) { lesson ->
-            LessonCard(
-                lesson = lesson,
-                onClick = { onLessonClick(lesson.id) }
-            )
+    val bodyColor = when(settings.bodyTextColorTheme) {
+        BodyTextColorTheme.PARCHMENT -> TextParchment
+        BodyTextColorTheme.SILVER -> TextSilver
+        BodyTextColorTheme.MUTED_GOLD -> TextMutedGold
+    }
+
+    // --- МАТЕМАТИКА (ARC LENGTH INTEGRAL APPROXIMATION) ---
+    // Овај блок се покреће само једном да израчуна савршене размаке по кривој!
+    val nodeYs = remember(lessons.size, density) {
+        val spacing = with(density) { 180.dp.toPx() } // Константна дужина лука (Arc Length) између лекција
+        val amplitude = with(density) { 100.dp.toPx() }
+        val freq = 1.6f / spacing // Фреквенција подешена за брже вијугање
+        
+        fun getSineX(y: Float) = amplitude * sin(y * freq)
+        
+        val ys = mutableListOf<Float>()
+        var currY = 0f
+        ys.add(currY)
+        
+        for (i in 1 until lessons.size) {
+            var stepY = currY
+            var arcLen = 0f
+            var prevX = getSineX(currY)
+            var prevY = currY
+            
+            // "Пешачимо" милиметар по милиметар док не пређемо жељену дужину лука
+            while (arcLen < spacing) {
+                stepY += 1f
+                val newX = getSineX(stepY)
+                arcLen += hypot(newX - prevX, stepY - prevY)
+                prevX = newX
+                prevY = stepY
+            }
+            currY = stepY
+            ys.add(currY)
+        }
+        ys
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 64.dp, bottom = 120.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            items(lessons.size) { index ->
+                val lesson = lessons[index]
+                val startGlobalY = nodeYs[index]
+                // Последња лекција добија вештачки простор испод себе
+                val endGlobalY = nodeYs.getOrNull(index + 1) ?: (startGlobalY + with(density) { 180.dp.toPx() })
+                val deltaY = endGlobalY - startGlobalY
+                
+                LessonPathNode(
+                    lesson = lesson,
+                    index = index,
+                    isLast = index == lessons.size - 1,
+                    startGlobalY = startGlobalY,
+                    endGlobalY = endGlobalY,
+                    deltaY = deltaY,
+                    bodyColor = bodyColor,
+                    showTrajectory = showTrajectory,
+                    onClick = { onLessonClick(lesson.id) }
+                )
+            }
+        }
+
+        if (settings.isDebugMode) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), shape = CircleShape)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Путања", color = bodyColor, fontSize = 12.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Switch(checked = showTrajectory, onCheckedChange = { showTrajectory = it }, modifier = Modifier.scale(0.7f))
+            }
         }
     }
 }
 
 @Composable
-fun LessonCard(lesson: Lesson, onClick: () -> Unit) {
-    val settings = LocalSufaraSettings.current
-    val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+fun LessonPathNode(
+    lesson: Lesson,
+    index: Int,
+    isLast: Boolean,
+    startGlobalY: Float,
+    endGlobalY: Float,
+    deltaY: Float,
+    bodyColor: Color,
+    showTrajectory: Boolean,
+    onClick: () -> Unit
+) {
+    val arabicFont = SufaraFonts.getArabicFont(LocalSufaraSettings.current.arabicFont)
+    val density = LocalDensity.current
+    
+    val amplitude = with(density) { 100.dp.toPx() }
+    val spacing = with(density) { 180.dp.toPx() }
+    val freq = 1.6f / spacing
+    fun getSineX(y: Float) = amplitude * sin(y * freq)
+    
+    val itemHeightDp = with(density) { deltaY.toDp() }
+    val circleRadiusPx = with(density) { 38.dp.toPx() } // Пола од 76.dp
+    
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(0.85f) // Ово чини картицу вишом него што је широка
-            .clickable(onClick = onClick)
+            .height(itemHeightDp),
+        contentAlignment = Alignment.TopCenter // Центрирано на врх да би се лекције лепо настављале
     ) {
+        // ДОЊИ СЛОЈ: Права синусоида и равномерне тачкице
+        if (!isLast) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val centerX = size.width / 2
+
+                // Цртамо црвену путању
+                if (showTrajectory) {
+                    val path = Path()
+                    path.moveTo(centerX + getSineX(startGlobalY), circleRadiusPx)
+                    val steps = 40
+                    for (step in 1..steps) {
+                        val f = step.toFloat() / steps
+                        val globalY = startGlobalY + f * deltaY
+                        val localY = circleRadiusPx + (globalY - startGlobalY)
+                        path.lineTo(centerX + getSineX(globalY), localY)
+                    }
+                    drawPath(path = path, color = Color.Red.copy(alpha = 0.5f), style = Stroke(width = 4.dp.toPx()))
+                }
+
+                // Тачкице распоређене тачно по математичком луку!
+                val dotSpacing = spacing / 5 // Желимо 4 тачке између лекција
+                var nextDotTarget = dotSpacing
+                var arcLen = 0f
+                var currY = startGlobalY
+                var prevX = getSineX(startGlobalY)
+                var prevY = startGlobalY
+                
+                while(currY < endGlobalY) {
+                    currY += 2f // Брзи корак за рачунање тачкица
+                    val newX = getSineX(currY)
+                    arcLen += hypot(newX - prevX, currY - prevY)
+                    if (arcLen >= nextDotTarget && nextDotTarget < spacing) {
+                        val localY = circleRadiusPx + (currY - startGlobalY)
+                        drawCircle(
+                            color = bodyColor.copy(alpha = 0.4f),
+                            radius = 4.dp.toPx(),
+                            center = Offset(centerX + newX, localY)
+                        )
+                        nextDotTarget += dotSpacing
+                    }
+                    prevX = newX
+                    prevY = currY
+                }
+            }
+        }
+
+        // ГОРЊИ СЛОЈ: Круг лекције
         Column(
-            modifier = Modifier.padding(16.dp).fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceEvenly, // Равномерно распоређује простор
+            modifier = Modifier
+                .offset(x = with(density) { getSineX(startGlobalY).toDp() })
+                .width(130.dp), 
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center
+            ) {
+                if (lesson.symbol == "📖" || lesson.symbol == ".") {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Основа",
+                        tint = bodyColor,
+                        modifier = Modifier.size(36.dp)
+                    )
+                } else {
+                    Text(
+                        text = lesson.symbol,
+                        fontFamily = arabicFont,
+                        fontSize = 36.sp,
+                        color = bodyColor,
+                        modifier = Modifier.padding(bottom = 6.dp) 
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Текст са заштитном сенком да би се одвајао од путање
             Text(
-                text = lesson.symbol,
-                fontSize = 48.sp, // ЗАКУЦАНО: Не множимо више са settings величином
-                fontFamily = arabicFont, 
-                color = Color.White
-            )
-
-            Text(
-                text = lesson.title, // Приказујемо само наслов, без броја (lesson.id)
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
+                text = lesson.title,
+                color = bodyColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                textAlign = TextAlign.Center,
+                style = TextStyle(
+                    shadow = Shadow(
+                        color = MaterialTheme.colorScheme.background, // Сенка је боје позадине
+                        blurRadius = 16f
+                    )
+                )
             )
         }
     }
@@ -1101,10 +1309,10 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Подешавања", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+            Text("Подешавања", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
         }
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -1113,16 +1321,47 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Приказ уживо:", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Приказ уживо:", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(8.dp))
-                SufaraText(text = "Ово је **ћирилица**.\nА ово је арапски: بِسْمِ اللَّهِ")
+                // Убацили смо пример са харфом да се лепо види сјај
+                SufaraText(text = "Ово је ћирилица.\nА ово је арапски пример:\nبِسْمِ اللَّهِ")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Text("Боја обичног текста", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BodyTextColorTheme.values().forEach { theme ->
+                FilterChip(
+                    selected = settings.bodyTextColorTheme == theme,
+                    onClick = { actions.updateBodyTextColor(theme) },
+                    label = { Text(theme.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                )
+            }
+        }
+
+        // НОВИ ДЕО: Избор боје сјаја
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Боја сјаја примера (Glow)", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlowColorTheme.values().forEach { theme ->
+                FilterChip(
+                    selected = settings.glowColorTheme == theme,
+                    onClick = { actions.updateGlowColor(theme) },
+                    label = { Text(theme.name) }
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Text("Ћирилица", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Lora", "Roboto Slab").forEach { font ->
@@ -1134,7 +1373,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
         }
         
-        Text("Величина: ${(settings.cyrillicSizeMultiplier * 100).toInt()}%")
+        Text("Величина: ${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
         Slider(
             value = settings.cyrillicSizeMultiplier,
             onValueChange = { actions.updateCyrillicSize(it) },
@@ -1144,7 +1383,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text("Арапски", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Amiri", "Noto Naskh").forEach { font ->
@@ -1156,20 +1395,19 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
         }
 
-        Text("Величина: ${(settings.arabicSizeMultiplier * 100).toInt()}%")
+        Text("Величина: ${(settings.arabicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
         Slider(
             value = settings.arabicSizeMultiplier,
             onValueChange = { actions.updateArabicSize(it) },
             valueRange = 0.6f..2.0f 
         )
 
-        // НОВИ ДЕО: Прекидач за Дебуг мод
         Spacer(modifier = Modifier.height(32.dp))
         Text("Развој", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Debug Mod (Омогућава прескакање квиза)", color = MaterialTheme.colorScheme.onSurface)
+            Text("Debug Mod (Омогућава прескакање квиза)", color = MaterialTheme.colorScheme.onBackground)
             Switch(checked = settings.isDebugMode, onCheckedChange = { actions.toggleDebugMode(it) })
         }
         Spacer(modifier = Modifier.height(32.dp))
@@ -1227,12 +1465,18 @@ import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 
+enum class BodyTextColorTheme { PARCHMENT, SILVER, MUTED_GOLD }
+// НОВО: Опције за боју сјаја
+enum class GlowColorTheme { GOLD, AZURE, PURPLE, NONE }
+
 data class SufaraSettingsState(
     val cyrillicFont: String = "Lora",
     val arabicFont: String = "Noto Naskh",
     val cyrillicSizeMultiplier: Float = 1.0f,
     val arabicSizeMultiplier: Float = 1.0f,
-    val isDebugMode: Boolean = true
+    val isDebugMode: Boolean = true,
+    val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER, // Ставио сам Silver као подразумевано!
+    val glowColorTheme: GlowColorTheme = GlowColorTheme.AZURE // НОВО
 )
 
 interface SufaraSettingsActions {
@@ -1241,6 +1485,8 @@ interface SufaraSettingsActions {
     fun updateCyrillicSize(size: Float)
     fun updateArabicSize(size: Float)
     fun toggleDebugMode(enabled: Boolean)
+    fun updateBodyTextColor(theme: BodyTextColorTheme)
+    fun updateGlowColor(theme: GlowColorTheme) // НОВО
 }
 
 val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
@@ -1256,8 +1502,17 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
     var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f).coerceIn(0.6f, 1.5f)) }
     var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f).coerceIn(0.6f, 2.0f)) }
     var isDebugMode by remember { mutableStateOf(prefs.getBoolean("debug_mode", true)) }
+    
+    var bodyTextColorTheme by remember { 
+        mutableStateOf(BodyTextColorTheme.valueOf(prefs.getString("body_color_theme", BodyTextColorTheme.SILVER.name) ?: BodyTextColorTheme.SILVER.name)) 
+    }
+    
+    // Учитавање Glow теме
+    var glowColorTheme by remember {
+        mutableStateOf(GlowColorTheme.valueOf(prefs.getString("glow_color_theme", GlowColorTheme.AZURE.name) ?: GlowColorTheme.AZURE.name))
+    }
 
-    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode)
+    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode, bodyTextColorTheme, glowColorTheme)
 
     val actions = object : SufaraSettingsActions {
         override fun updateCyrillicFont(name: String) {
@@ -1280,6 +1535,14 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
             isDebugMode = enabled
             prefs.edit().putBoolean("debug_mode", enabled).apply()
         }
+        override fun updateBodyTextColor(theme: BodyTextColorTheme) {
+            bodyTextColorTheme = theme
+            prefs.edit().putString("body_color_theme", theme.name).apply()
+        }
+        override fun updateGlowColor(theme: GlowColorTheme) {
+            glowColorTheme = theme
+            prefs.edit().putString("glow_color_theme", theme.name).apply()
+        }
     }
 
     CompositionLocalProvider(
@@ -1296,28 +1559,45 @@ PUTANJA: ./core/designsystem/src/main/java/com/dino/sufara/core/designsystem/Suf
 ================================================================================
 package com.dino.sufara.core.designsystem
 
+import android.app.Activity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = OrangeTerra,
-    secondary = BlueTeal,
-    background = BlueDeep,
-    surface = BlueTeal,
-    onPrimary = WhitePure,
-    onSecondary = WhiteMint,
-    onBackground = WhiteMint,
-    onSurface = WhiteMint,
-    error = RedCoral
+private val BlueQuranColorScheme = darkColorScheme(
+    primary = BlueRoyal,
+    secondary = GoldBase,
+    background = BlueAbyss,
+    surface = BlueMidnight,
+    onPrimary = TextParchment,
+    onSecondary = BlueAbyss,
+    onBackground = TextParchment,
+    onSurface = TextParchment,
+    error = ErrorRed
 )
 
 @Composable
 fun SufaraTheme(
     content: @Composable () -> Unit
 ) {
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            // Бојимо горњу траку (сат) и доњу (навигација) у дубоку плаву позадину!
+            window.statusBarColor = BlueAbyss.toArgb()
+            window.navigationBarColor = BlueAbyss.toArgb()
+            // Стављамо беле иконице (сат, батерија)
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+        }
+    }
+
     MaterialTheme(
-        colorScheme = DarkColorScheme,
+        colorScheme = BlueQuranColorScheme,
         typography = SufaraTypography,
         content = content
     )
@@ -1331,18 +1611,20 @@ package com.dino.sufara.core.designsystem
 
 import androidx.compose.ui.graphics.Color
 
-// Glavna paleta
-val BlueDeep = Color(0xFF114B5F)     // Pozadina (SpaceDark)
-val BlueTeal = Color(0xFF028090)     // Kartice (MysticTeal)
-val WhiteMint = Color(0xFFE4FDE1)    // Tekst uputstva (StarlightWhite)
-// PRIVREMENI HACK: Ime je Terra (narandžasta), ali boja je ŽUTA za arapski
-// Stara boja: Color(0xFFE58F65)
-val OrangeTerra = Color(0xFFFFD700)  // Gold/Žuta za isticanje arapskog
-val RedCoral = Color(0xFFF45B69)     // Greške (CoralRed)
+val BlueAbyss = Color(0xFF040A18)      // Дубока позадина
+val BlueMidnight = Color(0xFF0B1936)   // Картице и површине
+val BlueRoyal = Color(0xFF142D5E)      // Дугмићи и акценти
 
-// Pomoćne boje
-val WhitePure = Color(0xFFFFFFFF)    // Arapski tekst
-val TealGhost = Color(0x33028090)    // Providni efekti na klik-e 
+val TextParchment = Color(0xFFFDF5E6)  // Топла бела/крем
+val TextSilver = Color(0xFFE0E8F5)     // Хладна плавичасто-бела
+val TextMutedGold = Color(0xFFC5B382)  // Угашено, старо злато
+
+val GoldBase = Color(0xFFD4AF37)
+val GoldLight = Color(0xFFFFF2B2)
+val GoldDark = Color(0xFFAA7900)
+
+val MoltenRed = Color(0xFFD63200)      // Ужарени харекет/харф
+val ErrorRed = Color(0xFF8B0000)       // За квиз-e 
 
 
 ================================================================================
@@ -1435,6 +1717,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.dino.sufara.core.designsystem.SufaraTheme
 import com.dino.sufara.feature.lesson.data.repository.LocalAssetLessonRepository
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraSettingsProvider
@@ -1442,19 +1725,20 @@ import com.dino.sufara.navigation.SufaraNavGraph
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Иницијализација Splash екрана мора ићи пре super.onCreate
+        installSplashScreen() 
+        
         super.onCreate(savedInstanceState)
         
         val repository = LocalAssetLessonRepository(this)
 
         setContent {
             SufaraTheme {
-                // SufaraSettingsProvider omogućava globalni pristup fontovima i veličinama
                 SufaraSettingsProvider {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        // NavGraph sada preuzima kontrolu nad ekranima
                         SufaraNavGraph(repository)
                     }
                 }
@@ -1489,8 +1773,9 @@ fun SufaraNavGraph(repository: LessonRepository) {
     NavHost(navController = navController, startDestination = "main_menu") {
         composable("main_menu") {
             MainMenuScreen(
+                repository = repository, // НОВО: Прослеђујемо репозиторијум
                 onStartClick = { navController.navigate("lesson_grid") },
-                onSettingsClick = { navController.navigate("settings") } // Vodi na settings ekran
+                onSettingsClick = { navController.navigate("settings") }
             )
         }
         
@@ -1544,41 +1829,180 @@ PUTANJA: ./app/src/main/java/com/dino/sufara/presentation/MainMenuScreen.kt
 ================================================================================
 package com.dino.sufara.presentation
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dino.sufara.core.designsystem.*
+import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
+import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
 
 @Composable
 fun MainMenuScreen(
+    repository: LessonRepository,
     onStartClick: () -> Unit,
-    onSettingsClick: () -> Unit // Nova funkcija za navigaciju ka podešavanjima
+    onSettingsClick: () -> Unit
 ) {
+    val settings = LocalSufaraSettings.current
+    val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
+    
+    var facts by remember { mutableStateOf(listOf("Учитавање...")) }
+    var currentFactIndex by remember { mutableIntStateOf(0) }
+    
+    LaunchedEffect(Unit) {
+        val loadedFacts = repository.getFunFacts()
+        if (loadedFacts.isNotEmpty()) facts = loadedFacts
+    }
+
+    // ВРАЋЕНО НА ОБИЧНУ ТАМНУ ПОЗАДИНУ
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         
-        // Dugme za Podešavanja u gornjem desnom uglu
         IconButton(
             onClick = onSettingsClick,
             modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
         ) {
-            Icon(Icons.Default.Settings, contentDescription = "Подешавања", tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.Settings, contentDescription = "Подешавања", tint = GoldBase)
         }
 
-        Column(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Суфара", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(32.dp))
-            Button(onClick = onStartClick) {
-                Text("Покрени лекције")
+        Column(modifier = Modifier.fillMaxSize()) {
+            
+            Spacer(modifier = Modifier.weight(1f))
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val metallicGoldBrush = remember { Brush.verticalGradient(listOf(GoldLight, GoldBase, GoldDark)) }
+                val titleShadow = remember { Shadow(color = GoldBase.copy(alpha = 0.5f), blurRadius = 24f) }
+
+                Text(
+                    text = "Суфара",
+                    style = TextStyle(
+                        brush = metallicGoldBrush,
+                        shadow = titleShadow,
+                        fontSize = 64.sp, 
+                        fontFamily = cyrillicFont,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                
+                Spacer(modifier = Modifier.height(48.dp))
+
+                GoldenWireButton(onClick = onStartClick, text = "Покрени лекције", font = cyrillicFont)
             }
+
+            Spacer(modifier = Modifier.height(64.dp))
+
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Divider(color = TextSilver.copy(alpha = 0.4f), thickness = 1.dp)
+                
+                AnimatedContent(
+                    targetState = currentFactIndex,
+                    transitionSpec = { fadeIn(tween(800)) togetherWith fadeOut(tween(800)) },
+                    label = "FactAnimation"
+                ) { index ->
+                    Text(
+                        text = facts.getOrNull(index) ?: "",
+                        color = TextSilver.copy(alpha = 0.9f),
+                        fontSize = 16.sp,
+                        fontFamily = cyrillicFont,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { currentFactIndex = (currentFactIndex + 1) % facts.size }
+                            .padding(vertical = 24.dp)
+                    )
+                }
+                
+                Divider(color = TextSilver.copy(alpha = 0.4f), thickness = 1.dp)
+            }
+
+            Spacer(modifier = Modifier.weight(2f)) 
         }
+    }
+}
+
+@Composable
+fun GoldenWireButton(onClick: () -> Unit, text: String, font: androidx.compose.ui.text.font.FontFamily) {
+    val infiniteTransition = rememberInfiniteTransition(label = "wire_anim")
+    
+    // НОВО: Креирана специфична крива да жица никад не стане
+    val wireEasing = Easing { fraction ->
+        val linear = fraction
+        val smooth = fraction * fraction * (3 - 2 * fraction)
+        (linear * 0.4f) + (smooth * 0.6f) // 40% константна брзина, 60% убрзање
+    }
+
+    val angle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = wireEasing), 
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "angle"
+    )
+
+    val borderGradient = remember {
+        Brush.sweepGradient(
+            0.0f to Color.Transparent,
+            0.6f to Color.Transparent,
+            0.95f to GoldLight, 
+            1.0f to Color.Transparent
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(32.dp))
+            .clickable(onClick = onClick)
+            .drawBehind {
+                rotate(angle) {
+                    drawCircle(
+                        brush = borderGradient,
+                        radius = size.width, 
+                        center = Offset(size.width / 2, size.height / 2)
+                    )
+                }
+            }
+            .padding(2.dp) 
+            .background(BlueMidnight, RoundedCornerShape(30.dp)) // Боја дугмета остаје иста
+            .padding(horizontal = 40.dp, vertical = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text.uppercase(),
+            color = TextParchment,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = font,
+            letterSpacing = 2.sp
+        )
     }
 }-e 
 
@@ -1856,6 +2280,33 @@ PUTANJA: ./app/src/main/assets/lekcije/007 Тенвин са кесром/лек
 
 
 ================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/cinjenice.md
+================================================================================
+Први граматичар арапског језика је Али б. Еби Талиб
+У арапском језику постоји преко 300 синонима за лава
+У арапском језику постоји преко 1000 синонима за камилу
+У арапском језику постоји преко 100 синонима за сабљу
+Глас ض постоји само у арапском језику, због чега се арапски често назива 'језиком слова Дад'
+Реч за срце је قَلْب (калб), што долази од корена 'окретати се', јер је људско срце превртљиво
+Име језика 'арапски' у значењу је повезано са речитошћу и јасним изражавањем
+Чувени арапски граматичар Сибевејх био је Персијанац
+Стари Арапи су толико ценили поезију да су најбоље песме исписивали златом и качили на Кабу у Меки
+Класични арапски језик остао је непромењен више од 1500 година
+Реч 'џеп' потиче из арапске речи جَيْب (џејб)
+'Кахва' је арапска реч قَهْوَة (кахвех) и изворно је значила 'вино'
+Реч 'инат' потиче из арапске речи عِنَاد ('инад) што значи 'тврдоглавост'
+Реч 'сат' је арапског порекла, настала из речи سَاعَة (са'ах)
+У арапској граматици постоје две старе ривалске школе - школа Басре и школа Куфе
+Реч 'алгоритам' је изведена из имена познатог математичара ел-Хорезмија
+Већина најсјајнијих звезда на небу имају имена арапског порекла
+Ибн Малик је написао песму од 1000 стихова у којој су садржане цела граматика и морфологија, као и основе реторике
+У арапском језику постоје три врсте речи: именице, глаголи и честице
+У арапском језику глаголи пролазе кроз падеже
+Пустињски бедуини су вековима сматрани чуварима чистог језика, јер су живели изоловано од страних утицаја
+-e 
+
+
+================================================================================
 PUTANJA: ./app/src/main/assets/lekcije/003 Хемзе/додатак.md
 ================================================================================
 Хемзе је заправо само симбол ء, а усправна цртица ا на којој (или испод које) стоји хемзе зове се **елиф**.
@@ -1922,16 +2373,16 @@ PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/дод
 ================================================================================
 PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/примери.md
 ================================================================================
-إٍ
-دٍ
-ذٍ
-أَدٍ
-أَدَذٍ
-ذَدٍ
-أُذٍ
-دِذٍ
-ذِأَدٍ
-ذُدٍ-e 
+أً
+دًا
+أَدِأً
+ذًا
+ذِذًا
+دُدًا
+أَذِدًأ
+إِذًا
+أَدًا
+دِأَدًا-e 
 
 
 ================================================================================

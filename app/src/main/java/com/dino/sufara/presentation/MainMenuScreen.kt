@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.core.designsystem.*
 import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
+import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
 
@@ -47,14 +48,13 @@ fun MainMenuScreen(
         if (loadedFacts.isNotEmpty()) facts = loadedFacts
     }
 
-    // ВРАЋЕНО НА ОБИЧНУ ТАМНУ ПОЗАДИНУ
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         
         IconButton(
             onClick = onSettingsClick,
             modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
         ) {
-            Icon(Icons.Default.Settings, contentDescription = "Подешавања", tint = GoldBase)
+            Icon(Icons.Default.Settings, contentDescription = "Подешавања".asScript(), tint = GoldBase)
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
@@ -69,7 +69,7 @@ fun MainMenuScreen(
                 val titleShadow = remember { Shadow(color = GoldBase.copy(alpha = 0.5f), blurRadius = 24f) }
 
                 Text(
-                    text = "Суфара",
+                    text = "Суфара".asScript(),
                     style = TextStyle(
                         brush = metallicGoldBrush,
                         shadow = titleShadow,
@@ -81,7 +81,7 @@ fun MainMenuScreen(
                 
                 Spacer(modifier = Modifier.height(48.dp))
 
-                GoldenWireButton(onClick = onStartClick, text = "Покрени лекције", font = cyrillicFont)
+                GoldenWireButton(onClick = onStartClick, text = "Покрени лекције".asScript(), font = cyrillicFont)
             }
 
             Spacer(modifier = Modifier.height(64.dp))
@@ -98,7 +98,7 @@ fun MainMenuScreen(
                     label = "FactAnimation"
                 ) { index ->
                     Text(
-                        text = facts.getOrNull(index) ?: "",
+                        text = (facts.getOrNull(index) ?: "").asScript(),
                         color = TextSilver.copy(alpha = 0.9f),
                         fontSize = 16.sp,
                         fontFamily = cyrillicFont,
@@ -122,11 +122,10 @@ fun MainMenuScreen(
 fun GoldenWireButton(onClick: () -> Unit, text: String, font: androidx.compose.ui.text.font.FontFamily) {
     val infiniteTransition = rememberInfiniteTransition(label = "wire_anim")
     
-    // НОВО: Креирана специфична крива да жица никад не стане
     val wireEasing = Easing { fraction ->
         val linear = fraction
         val smooth = fraction * fraction * (3 - 2 * fraction)
-        (linear * 0.4f) + (smooth * 0.6f) // 40% константна брзина, 60% убрзање
+        (linear * 0.4f) + (smooth * 0.6f)
     }
 
     val angle by infiniteTransition.animateFloat(
@@ -162,7 +161,7 @@ fun GoldenWireButton(onClick: () -> Unit, text: String, font: androidx.compose.u
                 }
             }
             .padding(2.dp) 
-            .background(BlueMidnight, RoundedCornerShape(30.dp)) // Боја дугмета остаје иста
+            .background(BlueMidnight, RoundedCornerShape(30.dp))
             .padding(horizontal = 40.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {

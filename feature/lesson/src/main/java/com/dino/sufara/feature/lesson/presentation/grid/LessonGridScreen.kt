@@ -29,6 +29,7 @@ import com.dino.sufara.core.designsystem.TextMutedGold
 import com.dino.sufara.core.designsystem.TextParchment
 import com.dino.sufara.core.designsystem.TextSilver
 import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
@@ -51,12 +52,10 @@ fun LessonGridScreen(
         BodyTextColorTheme.MUTED_GOLD -> TextMutedGold
     }
 
-    // --- МАТЕМАТИКА (ARC LENGTH INTEGRAL APPROXIMATION) ---
-    // Овај блок се покреће само једном да израчуна савршене размаке по кривој!
     val nodeYs = remember(lessons.size, density) {
-        val spacing = with(density) { 180.dp.toPx() } // Константна дужина лука (Arc Length) између лекција
+        val spacing = with(density) { 180.dp.toPx() } 
         val amplitude = with(density) { 100.dp.toPx() }
-        val freq = 1.6f / spacing // Фреквенција подешена за брже вијугање
+        val freq = 1.6f / spacing 
         
         fun getSineX(y: Float) = amplitude * sin(y * freq)
         
@@ -70,7 +69,6 @@ fun LessonGridScreen(
             var prevX = getSineX(currY)
             var prevY = currY
             
-            // "Пешачимо" милиметар по милиметар док не пређемо жељену дужину лука
             while (arcLen < spacing) {
                 stepY += 1f
                 val newX = getSineX(stepY)
@@ -94,13 +92,11 @@ fun LessonGridScreen(
             items(lessons.size) { index ->
                 val lesson = lessons[index]
                 val startGlobalY = nodeYs[index]
-                // Последња лекција добија вештачки простор испод себе
                 val endGlobalY = nodeYs.getOrNull(index + 1) ?: (startGlobalY + with(density) { 180.dp.toPx() })
                 val deltaY = endGlobalY - startGlobalY
                 
                 LessonPathNode(
                     lesson = lesson,
-                    index = index,
                     isLast = index == lessons.size - 1,
                     startGlobalY = startGlobalY,
                     endGlobalY = endGlobalY,
@@ -121,7 +117,7 @@ fun LessonGridScreen(
                     .padding(horizontal = 12.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Путања", color = bodyColor, fontSize = 12.sp)
+                Text("Путања".asScript(), color = bodyColor, fontSize = 12.sp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Switch(checked = showTrajectory, onCheckedChange = { showTrajectory = it }, modifier = Modifier.scale(0.7f))
             }
@@ -132,7 +128,6 @@ fun LessonGridScreen(
 @Composable
 fun LessonPathNode(
     lesson: Lesson,
-    index: Int,
     isLast: Boolean,
     startGlobalY: Float,
     endGlobalY: Float,
@@ -150,20 +145,18 @@ fun LessonPathNode(
     fun getSineX(y: Float) = amplitude * sin(y * freq)
     
     val itemHeightDp = with(density) { deltaY.toDp() }
-    val circleRadiusPx = with(density) { 38.dp.toPx() } // Пола од 76.dp
+    val circleRadiusPx = with(density) { 38.dp.toPx() } 
     
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(itemHeightDp),
-        contentAlignment = Alignment.TopCenter // Центрирано на врх да би се лекције лепо настављале
+        contentAlignment = Alignment.TopCenter 
     ) {
-        // ДОЊИ СЛОЈ: Права синусоида и равномерне тачкице
         if (!isLast) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val centerX = size.width / 2
 
-                // Цртамо црвену путању
                 if (showTrajectory) {
                     val path = Path()
                     path.moveTo(centerX + getSineX(startGlobalY), circleRadiusPx)
@@ -177,8 +170,7 @@ fun LessonPathNode(
                     drawPath(path = path, color = Color.Red.copy(alpha = 0.5f), style = Stroke(width = 4.dp.toPx()))
                 }
 
-                // Тачкице распоређене тачно по математичком луку!
-                val dotSpacing = spacing / 5 // Желимо 4 тачке између лекција
+                val dotSpacing = spacing / 5 
                 var nextDotTarget = dotSpacing
                 var arcLen = 0f
                 var currY = startGlobalY
@@ -186,7 +178,7 @@ fun LessonPathNode(
                 var prevY = startGlobalY
                 
                 while(currY < endGlobalY) {
-                    currY += 2f // Брзи корак за рачунање тачкица
+                    currY += 2f 
                     val newX = getSineX(currY)
                     arcLen += hypot(newX - prevX, currY - prevY)
                     if (arcLen >= nextDotTarget && nextDotTarget < spacing) {
@@ -204,7 +196,6 @@ fun LessonPathNode(
             }
         }
 
-        // ГОРЊИ СЛОЈ: Круг лекције
         Column(
             modifier = Modifier
                 .offset(x = with(density) { getSineX(startGlobalY).toDp() })
@@ -239,9 +230,8 @@ fun LessonPathNode(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Текст са заштитном сенком да би се одвајао од путање
             Text(
-                text = lesson.title,
+                text = lesson.title.asScript(),
                 color = bodyColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -249,7 +239,7 @@ fun LessonPathNode(
                 textAlign = TextAlign.Center,
                 style = TextStyle(
                     shadow = Shadow(
-                        color = MaterialTheme.colorScheme.background, // Сенка је боје позадине
+                        color = MaterialTheme.colorScheme.background,
                         blurRadius = 16f
                     )
                 )

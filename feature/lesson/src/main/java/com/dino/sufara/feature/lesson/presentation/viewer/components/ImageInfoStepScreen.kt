@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.domain.util.asScript
 
 @Composable
 fun ImageInfoStepScreen(
@@ -33,7 +34,7 @@ fun ImageInfoStepScreen(
             onClick = onNextClick,
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
         ) {
-            Text("Даље", fontSize = 18.sp)
+            Text("Даље".asScript(), fontSize = 18.sp)
         }
     }
 }

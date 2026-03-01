@@ -10,7 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
-import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings // ИСПРАВЉЕН ИМПОРТ
+import com.dino.sufara.feature.lesson.domain.util.asScript
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -26,7 +27,7 @@ fun QuizStepScreen(
         val shuffledAnswers = remember { step.answers.shuffled() }
         var selectedAnswer by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
-        val settings = LocalSufaraSettings.current // ИСПРАВЉЕН ПОЗИВ
+        val settings = LocalSufaraSettings.current
 
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
@@ -59,7 +60,6 @@ fun QuizStepScreen(
                     }
                 }
 
-                // ДУГМЕ ЗА ПРЕСКАКАЊЕ (Приказује се само ако је Debug мод укључен)
                 if (settings.isDebugMode) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
@@ -67,7 +67,7 @@ fun QuizStepScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("ПРЕСКОЧИ КВИЗ (Debug)")
+                        Text("ПРЕСКОЧИ КВИЗ (Debug)".asScript())
                     }
                 }
             }
@@ -82,7 +82,7 @@ fun QuizStepScreen(
                     }
                 ) {
                     Text(
-                        text = "Додирни било где за поновни покушај",
+                        text = "Додирни било где за поновни покушај".asScript(),
                         color = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.align(Alignment.BottomCenter).padding(32.dp)
                     )
