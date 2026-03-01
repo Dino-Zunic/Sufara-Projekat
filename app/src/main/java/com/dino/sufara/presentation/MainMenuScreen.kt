@@ -41,11 +41,14 @@ fun MainMenuScreen(
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
     
     var facts by remember { mutableStateOf(listOf("Учитавање...")) }
-    var currentFactIndex by remember { mutableIntStateOf(0) }
+    var currentFact by remember { mutableStateOf("Учитавање...") }
     
     LaunchedEffect(Unit) {
         val loadedFacts = repository.getFunFacts()
-        if (loadedFacts.isNotEmpty()) facts = loadedFacts
+        if (loadedFacts.isNotEmpty()) {
+            facts = loadedFacts
+            currentFact = facts.random()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -93,19 +96,25 @@ fun MainMenuScreen(
                 Divider(color = TextSilver.copy(alpha = 0.4f), thickness = 1.dp)
                 
                 AnimatedContent(
-                    targetState = currentFactIndex,
+                    targetState = currentFact,
                     transitionSpec = { fadeIn(tween(800)) togetherWith fadeOut(tween(800)) },
                     label = "FactAnimation"
-                ) { index ->
+                ) { fact ->
                     Text(
-                        text = (facts.getOrNull(index) ?: "").asScript(),
+                        text = fact.asScript(),
                         color = TextSilver.copy(alpha = 0.9f),
                         fontSize = 16.sp,
                         fontFamily = cyrillicFont,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { currentFactIndex = (currentFactIndex + 1) % facts.size }
+                            .clickable { 
+                                var newFact = facts.random()
+                                while(newFact == currentFact && facts.size > 1) {
+                                    newFact = facts.random()
+                                }
+                                currentFact = newFact
+                            }
                             .padding(vertical = 24.dp)
                     )
                 }

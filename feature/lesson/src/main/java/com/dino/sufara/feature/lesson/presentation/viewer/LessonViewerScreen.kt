@@ -2,15 +2,13 @@ package com.dino.sufara.feature.lesson.presentation.viewer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.dino.sufara.core.designsystem.BlueMidnight
+import com.dino.sufara.core.designsystem.GoldBase
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
 import com.dino.sufara.feature.lesson.presentation.viewer.components.ExampleStepScreen
 import com.dino.sufara.feature.lesson.presentation.viewer.components.ImageInfoStepScreen
@@ -27,7 +25,7 @@ fun LessonViewerScreen(
 
     if (lesson == null) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = GoldBase)
         }
         return
     }
@@ -47,21 +45,15 @@ fun LessonViewerScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { if (currentIndex > 0) viewModel.previousStep() else onNavigateBack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = Color.White)
-            }
             LinearProgressIndicator(
                 progress = progress,
-                modifier = Modifier.weight(1f).height(12.dp).padding(horizontal = 8.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surface
+                modifier = Modifier.weight(1f).height(4.dp), // Суптилније (4.dp уместо 12.dp)
+                color = GoldBase, // Злато пуни
+                trackColor = BlueMidnight // Тамно плава подлога
             )
-            IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.Close, contentDescription = "Затвори", tint = Color.White)
-            }
         }
 
         when (currentStep) {
