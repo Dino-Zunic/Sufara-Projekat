@@ -15,20 +15,20 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.core.designsystem.*
 import com.dino.sufara.feature.lesson.domain.util.HarfHighlighter
-import com.dino.sufara.feature.lesson.domain.util.HighlightAction
 import com.dino.sufara.feature.lesson.domain.util.HighlightType
 import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.GlowColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+// НОВО: Импорт наше архитектуре!
+import com.dino.sufara.feature.lesson.presentation.viewer.components.renderers.RendererFactory
 
 sealed class TextBlock {
     data class Paragraph(val text: String) : TextBlock()
@@ -48,8 +48,6 @@ fun SufaraText(
     val settings = LocalSufaraSettings.current
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
     val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
-    
-    // НОВО: Преводимо комплетан текст у одабрано писмо
     val scriptText = text.asScript()
     
     val finalBaseSize = baseFontSize * settings.cyrillicSizeMultiplier
@@ -72,7 +70,6 @@ fun SufaraText(
     val textGlow = remember(glowColor) { Shadow(color = glowColor, blurRadius = 14f) }
     val redGlow = remember { Shadow(color = MoltenRed.copy(alpha = 0.6f), blurRadius = 16f) }
 
-    // НОВО: Додата латинична слова (čćžšđ) у Регекс!
     val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏčćžšđČĆŽŠĐ]+") }
     val arabicRegex = remember { Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+") }
     val globalType = remember(lessonId) { HarfHighlighter.getLessonType(lessonId) }
@@ -108,6 +105,11 @@ fun SufaraText(
         flushParagraph()
         flushGroup()
         result
+    }
+
+    // НОВО: Дохватамо прави алгоритам из Фабрике
+    val exampleRenderer = remember(settings.arabicFont) {
+        RendererFactory.getRenderer(settings.arabicFont)
     }
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -146,74 +148,24 @@ fun SufaraText(
                         block.examples.forEach { exampleText ->
                             key(exampleText) {
                                 val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
-                                
                                 var scaleMultiplier by remember { mutableFloatStateOf(1f) }
                                 val currentExampleSize = finalArabicSize * 1.5f * scaleMultiplier
                                 
-                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    Text(
-                                        fontFamily = arabicFont,
-                                        fontSize = currentExampleSize, 
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        text = buildAnnotatedString {
-                                            val wordStart = length
-                                            append(exampleText)
-                                            for (i in exampleText.indices) {
-                                                val isRedLayer1 = when (globalType) {
-                                                    HighlightType.HARAKAH -> action is HighlightAction.Harakah && (action.diacritics.contains(i) || action.supports.contains(i))
-                                                    else -> false
-                                                }
-                                                
-                                                if (isRedLayer1) {
-                                                    addStyle(SpanStyle(color = MoltenRed, shadow = redGlow), wordStart + i, wordStart + i + 1)
-                                                } else {
-                                                    val isGold = globalType == HighlightType.HARF
-                                                    if (isGold) {
-                                                        addStyle(SpanStyle(color = GoldBase, shadow = textGlow), wordStart + i, wordStart + i + 1)
-                                                    } else {
-                                                        addStyle(SpanStyle(color = Color.Transparent), wordStart + i, wordStart + i + 1)
-                                                    }
-                                                }
-                                            }
+                                // НОВО: Једноставан позив Рендерера! Сва ружна логика је нестала.
+                                exampleRenderer.Render(
+                                    text = exampleText,
+                                    action = action,
+                                    globalType = globalType,
+                                    arabicFont = arabicFont,
+                                    fontSize = currentExampleSize,
+                                    textGlow = textGlow,
+                                    redGlow = redGlow,
+                                    onTextLayout = { textLayoutResult ->
+                                        if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
+                                            scaleMultiplier *= 0.9f
                                         }
-                                    )
-                                    Text(
-                                        fontFamily = arabicFont,
-                                        fontSize = currentExampleSize, 
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        onTextLayout = { textLayoutResult ->
-                                            if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
-                                                scaleMultiplier *= 0.9f
-                                            }
-                                        },
-                                        text = buildAnnotatedString {
-                                            val wordStart = length
-                                            append(exampleText)
-                                            for (i in exampleText.indices) {
-                                                when (globalType) {
-                                                    HighlightType.HARAKAH -> {
-                                                        val isHole = action is HighlightAction.Harakah && action.diacritics.contains(i)
-                                                        if (isHole) {
-                                                            addStyle(SpanStyle(color = Color.Transparent), wordStart + i, wordStart + i + 1)
-                                                        } else {
-                                                            addStyle(SpanStyle(color = GoldBase, shadow = textGlow), wordStart + i, wordStart + i + 1)
-                                                        }
-                                                    }
-                                                    else -> {
-                                                        val isTargetHarf = action is HighlightAction.Harf && action.characters.contains(i)
-                                                        if (isTargetHarf) {
-                                                            addStyle(SpanStyle(color = MoltenRed, shadow = redGlow), wordStart + i, wordStart + i + 1)
-                                                        } else {
-                                                            addStyle(SpanStyle(color = Color.Transparent), wordStart + i, wordStart + i + 1)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    )
-                                }
+                                    }
+                                )
                             }
                         }
                     }
