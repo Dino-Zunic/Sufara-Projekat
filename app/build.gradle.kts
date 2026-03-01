@@ -35,6 +35,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.core.splashscreen)
     implementation(project(":core:designsystem"))
     implementation(project(":feature:lesson"))
 
