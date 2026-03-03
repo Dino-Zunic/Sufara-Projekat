@@ -50,9 +50,9 @@ fun LessonViewerScreen(
         ) {
             LinearProgressIndicator(
                 progress = progress,
-                modifier = Modifier.weight(1f).height(4.dp), // Суптилније (4.dp уместо 12.dp)
-                color = GoldBase, // Злато пуни
-                trackColor = BlueMidnight // Тамно плава подлога
+                modifier = Modifier.weight(1f).height(4.dp), 
+                color = GoldBase, 
+                trackColor = BlueMidnight 
             )
         }
 
@@ -60,7 +60,15 @@ fun LessonViewerScreen(
             is LessonStep.Theory -> TheoryStepScreen(step = currentStep, lessonId = lesson!!.id, symbol = lesson!!.symbol, onNextClick = handleNextStep)
             is LessonStep.ImageInfo -> ImageInfoStepScreen(step = currentStep, onNextClick = handleNextStep)
             is LessonStep.Quiz -> QuizStepScreen(step = currentStep, stepIndex = currentIndex, onNextClick = handleNextStep)
-            is LessonStep.Example -> ExampleStepScreen(step = currentStep, lessonId = lesson!!.id, symbol = lesson!!.symbol, onNextClick = handleNextStep)
+            // ИСПРАВКА: Овде је додат stepIndex = currentIndex
+            is LessonStep.Example -> ExampleStepScreen(
+                step = currentStep, 
+                lessonId = lesson!!.id, 
+                symbol = lesson!!.symbol, 
+                stepIndex = currentIndex,
+                onNextClick = handleNextStep,
+                onPrevClick = { viewModel.previousStep() } 
+            )
         }
     }
 }
