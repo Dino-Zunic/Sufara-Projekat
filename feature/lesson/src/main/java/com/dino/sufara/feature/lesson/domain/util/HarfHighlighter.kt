@@ -15,14 +15,6 @@ object HarfHighlighter {
         return this in '\u0610'..'\u061A' || this in '\u064B'..'\u065F' || this == '\u0670'
     }
 
-    // И ОВО ЈЕ ФАЛИЛО!
-    fun getLessonType(lessonId: String): HighlightType {
-        return when (lessonId) {
-            "001", "002", "006", "007", "008" -> HighlightType.HARAKAH
-            else -> HighlightType.HARF
-        }
-    }
-
     fun analyze(text: String, lessonId: String, symbol: String): HighlightAction {
         SufaraLogger.log("--- АНАЛИЗА РЕЧИ: '$text' | Лекција: $lessonId | Симбол: '$symbol' ---")
 

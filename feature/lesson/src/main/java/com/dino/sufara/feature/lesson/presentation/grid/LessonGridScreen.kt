@@ -148,7 +148,7 @@ fun LessonPathNode(
     showTrajectory: Boolean,
     onClick: () -> Unit
 ) {
-    val arabicFont = SufaraFonts.getArabicFont(LocalSufaraSettings.current.arabicFont)
+    val arabicFont = SufaraFonts.getArabicFont("Noto Naskh")
     val density = LocalDensity.current
     
     val amplitude = with(density) { 100.dp.toPx() }

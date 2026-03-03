@@ -33,6 +33,10 @@ fun TheoryStepScreen(
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
+        if (symbol.length == 1 && symbol != ".") {
+            HarfShowcase(symbol = symbol)
+        }
+        
         SufaraText(text = step.text, lessonId = lessonId, symbol = symbol)
 
         if (step.dodatakText != null) {

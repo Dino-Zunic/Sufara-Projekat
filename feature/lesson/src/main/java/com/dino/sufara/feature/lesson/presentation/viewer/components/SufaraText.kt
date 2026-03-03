@@ -72,7 +72,13 @@ fun SufaraText(
 
     val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏčćžšđČĆŽŠĐ]+") }
     val arabicRegex = remember { Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+") }
-    val globalType = remember(lessonId) { HarfHighlighter.getLessonType(lessonId) }
+    val globalType: HighlightType = remember(symbol) {
+        if (symbol.length == 1 && symbol != ".") {
+            HighlightType.HARF
+        } else {
+            HighlightType.HARAKAH
+        }
+    }
 
     val blocks = remember(scriptText) {
         val result = mutableListOf<TextBlock>()
