@@ -2,10 +2,13 @@ package com.dino.sufara.feature.lesson.presentation.viewer.components.renderers
 
 object RendererFactory {
     fun getRenderer(fontName: String): ArabicExampleRenderer {
+        return EmptyExampleRenderer()
+        /*
         return if (fontName == "Amiri" || fontName == "KFGQPC") {
-            ShaderBrushExampleRenderer()
+            NaiveExampleRenderer()
         } else {
             SpanStyleExampleRenderer()
         }
+        */
     }
 }
