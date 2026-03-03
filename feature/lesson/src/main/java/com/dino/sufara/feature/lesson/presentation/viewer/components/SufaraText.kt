@@ -3,6 +3,7 @@ package com.dino.sufara.feature.lesson.presentation.viewer.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -19,6 +20,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import com.dino.sufara.core.designsystem.*
 import com.dino.sufara.feature.lesson.domain.util.HarfHighlighter
 import com.dino.sufara.feature.lesson.domain.util.HighlightType
@@ -27,7 +30,6 @@ import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.GlowColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
-// НОВО: Импорт наше архитектуре!
 import com.dino.sufara.feature.lesson.presentation.viewer.components.renderers.RendererFactory
 
 sealed class TextBlock {
@@ -35,6 +37,7 @@ sealed class TextBlock {
     data class ExampleGroup(val examples: List<String>) : TextBlock()
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SufaraText(
     text: String,
@@ -113,7 +116,6 @@ fun SufaraText(
         result
     }
 
-    // НОВО: Дохватамо прави алгоритам из Фабрике
     val exampleRenderer = remember(settings.arabicFont) {
         RendererFactory.getRenderer(settings.arabicFont)
     }
@@ -146,32 +148,40 @@ fun SufaraText(
                 }
                 
                 is TextBlock.ExampleGroup -> {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        block.examples.forEach { exampleText ->
-                            key(exampleText) {
-                                val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
-                                var scaleMultiplier by remember { mutableFloatStateOf(1f) }
-                                val currentExampleSize = finalArabicSize * 1.5f * scaleMultiplier
-                                
-                                // НОВО: Једноставан позив Рендерера! Сва ружна логика је нестала.
-                                exampleRenderer.Render(
-                                    text = exampleText,
-                                    action = action,
-                                    globalType = globalType,
-                                    arabicFont = arabicFont,
-                                    fontSize = currentExampleSize,
-                                    textGlow = textGlow,
-                                    redGlow = redGlow,
-                                    onTextLayout = { textLayoutResult ->
-                                        if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
-                                            scaleMultiplier *= 0.9f
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 24.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalArrangement = Arrangement.spacedBy(32.dp)
+                        ) {
+                            block.examples.forEach { exampleText ->
+                                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                    key(exampleText) {
+                                        val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
+                                        var scaleMultiplier by remember { mutableFloatStateOf(1f) }
+                                        
+                                        val currentExampleSize = finalArabicSize * 1.9f * scaleMultiplier
+                                        
+                                        Box(contentAlignment = Alignment.Center) {
+                                            exampleRenderer.Render(
+                                                text = exampleText,
+                                                action = action,
+                                                globalType = globalType,
+                                                arabicFont = arabicFont,
+                                                fontSize = currentExampleSize,
+                                                textGlow = textGlow,
+                                                redGlow = redGlow,
+                                                onTextLayout = { textLayoutResult ->
+                                                    if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
+                                                        scaleMultiplier *= 0.9f
+                                                    }
+                                                }
+                                            )
                                         }
                                     }
-                                )
+                                }
                             }
                         }
                     }

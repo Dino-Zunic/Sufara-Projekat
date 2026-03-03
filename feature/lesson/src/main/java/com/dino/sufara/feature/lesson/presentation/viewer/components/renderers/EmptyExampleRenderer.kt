@@ -1,7 +1,7 @@
 package com.dino.sufara.feature.lesson.presentation.viewer.components.renderers
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,15 +27,14 @@ class EmptyExampleRenderer : ArabicExampleRenderer {
         redGlow: Shadow,
         onTextLayout: (TextLayoutResult) -> Unit
     ) {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.wrapContentSize(), contentAlignment = Alignment.Center) {
             Text(
                 text = text,
                 fontFamily = arabicFont,
                 fontSize = fontSize,
-                color = GoldBase, // Sve je zlato
+                color = GoldBase,
                 style = androidx.compose.ui.text.TextStyle(shadow = textGlow),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
                 onTextLayout = onTextLayout
             )
         }

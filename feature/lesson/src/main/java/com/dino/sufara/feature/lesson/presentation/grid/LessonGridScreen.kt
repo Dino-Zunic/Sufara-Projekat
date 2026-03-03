@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed // DODATO
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
@@ -14,12 +14,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -44,7 +41,6 @@ fun LessonGridScreen(
 ) {
     val lessons by viewModel.lessons.collectAsState()
     val settings = LocalSufaraSettings.current
-    var showTrajectory by remember { mutableStateOf(false) }
     val density = LocalDensity.current
 
     val bodyColor = when(settings.bodyTextColorTheme) {
@@ -53,7 +49,6 @@ fun LessonGridScreen(
         BodyTextColorTheme.MUTED_GOLD -> TextMutedGold
     }
 
-    // Izračunavanje Y pozicija za čvorove puta (Sinusoida)
     val nodeYs = remember(lessons.size, density) {
         val spacing = with(density) { 180.dp.toPx() } 
         val amplitude = with(density) { 100.dp.toPx() }
@@ -85,19 +80,16 @@ fun LessonGridScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 64.dp, bottom = 120.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // FIX: Koristimo itemsIndexed sa ključem (lesson.id) za stabilnost
             itemsIndexed(
                 items = lessons,
                 key = { _, lesson -> lesson.id }
             ) { index, lesson ->
                 
-                // Bezbedno izvlačenje Y koordinata
                 val startGlobalY = nodeYs.getOrElse(index) { 0f }
                 val endGlobalY = nodeYs.getOrNull(index + 1) ?: (startGlobalY + with(density) { 180.dp.toPx() })
                 val deltaY = endGlobalY - startGlobalY
@@ -109,28 +101,7 @@ fun LessonGridScreen(
                     endGlobalY = endGlobalY,
                     deltaY = deltaY,
                     bodyColor = bodyColor,
-                    showTrajectory = showTrajectory,
                     onClick = { onLessonClick(lesson.id) }
-                )
-            }
-        }
-
-        // Debug Switch za prikazivanje matematičke putanje
-        if (settings.isDebugMode) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), shape = CircleShape)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Putanjna".asScript(), color = bodyColor, fontSize = 12.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Switch(
-                    checked = showTrajectory, 
-                    onCheckedChange = { showTrajectory = it }, 
-                    modifier = Modifier.scale(0.7f)
                 )
             }
         }
@@ -145,7 +116,6 @@ fun LessonPathNode(
     endGlobalY: Float,
     deltaY: Float,
     bodyColor: Color,
-    showTrajectory: Boolean,
     onClick: () -> Unit
 ) {
     val arabicFont = SufaraFonts.getArabicFont("Noto Naskh")
@@ -169,25 +139,6 @@ fun LessonPathNode(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val centerX = size.width / 2
 
-                // Crtanje crvene linije (samo u debug modu)
-                if (showTrajectory) {
-                    val path = Path()
-                    path.moveTo(centerX + getSineX(startGlobalY), circleRadiusPx)
-                    val steps = 40
-                    for (step in 1..steps) {
-                        val f = step.toFloat() / steps
-                        val globalY = startGlobalY + f * deltaY
-                        val localY = circleRadiusPx + (globalY - startGlobalY)
-                        path.lineTo(centerX + getSineX(globalY), localY)
-                    }
-                    drawPath(
-                        path = path, 
-                        color = Color.Red.copy(alpha = 0.5f), 
-                        style = Stroke(width = 4.dp.toPx())
-                    )
-                }
-
-                // Crtanje tačkica između lekcija
                 val dotSpacing = spacing / 5 
                 var nextDotTarget = dotSpacing
                 var arcLen = 0f
@@ -214,7 +165,6 @@ fun LessonPathNode(
             }
         }
 
-        // Kružni čvor lekcije
         Column(
             modifier = Modifier
                 .offset(x = with(density) { getSineX(startGlobalY).toDp() })
@@ -229,7 +179,6 @@ fun LessonPathNode(
                     .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center
             ) {
-                // Ako je simbol knjiga ili tačka, crtamo ikonicu zvezde (specijalni slučaj)
                 if (lesson.symbol == "📖" || lesson.symbol == ".") {
                     Icon(
                         imageVector = Icons.Default.Star,
