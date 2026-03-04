@@ -50,12 +50,19 @@ fun SufaraText(
 ) {
     val settings = LocalSufaraSettings.current
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
-    val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
+    
+    // Развајамо фонтове: Један за примере, други фиксно Noto Naskh за текст
+    val exampleArabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
+    val inlineArabicFont = SufaraFonts.getArabicFont("Noto Naskh")
+    
     val scriptText = text.asScript()
     
     val finalBaseSize = baseFontSize * settings.cyrillicSizeMultiplier
     val finalArabicSize = arabicFontSize * settings.arabicSizeMultiplier
-    val finalLineHeight = lineHeight * maxOf(settings.cyrillicSizeMultiplier, settings.arabicSizeMultiplier * 1.5f)
+    
+    // ИСПРАВКА: Нормалан проред и величина за арапски унутар обичног текста
+    val paragraphLineHeight = lineHeight * settings.cyrillicSizeMultiplier
+    val inlineArabicSize = finalBaseSize * 1.4f 
 
     val bodyColor = when(settings.bodyTextColorTheme) {
         BodyTextColorTheme.PARCHMENT -> TextParchment
@@ -75,12 +82,12 @@ fun SufaraText(
 
     val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏčćžšđČĆŽŠĐ]+") }
     val arabicRegex = remember { Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+") }
+    
+    // ИСПРАВКА: Додат изузетак за Лам-Елиф
+    val isHarf = (symbol.length == 1 && symbol != ".") || symbol == "لا"
+    
     val globalType: HighlightType = remember(symbol) {
-        if (symbol.length == 1 && symbol != ".") {
-            HighlightType.HARF
-        } else {
-            HighlightType.HARAKAH
-        }
+        if (isHarf) HighlightType.HARF else HighlightType.HARAKAH
     }
 
     val blocks = remember(scriptText) {
@@ -125,7 +132,7 @@ fun SufaraText(
             when (block) {
                 is TextBlock.Paragraph -> {
                     Text(
-                        lineHeight = finalLineHeight,
+                        lineHeight = paragraphLineHeight, // ИСПРАВКА ПРОРЕДА
                         text = buildAnnotatedString {
                             val parts = block.text.split("**")
                             parts.forEachIndexed { index, part ->
@@ -135,7 +142,8 @@ fun SufaraText(
                                         append(part.substring(lastIndex, matchResult.range.first))
                                         val arabicWord = matchResult.value
                                         
-                                        withStyle(SpanStyle(fontFamily = arabicFont, fontSize = finalArabicSize, color = bodyColor)) {
+                                        // ИСПРАВКА: Користимо inlineArabicFont и inlineArabicSize
+                                        withStyle(SpanStyle(fontFamily = inlineArabicFont, fontSize = inlineArabicSize, color = bodyColor)) {
                                             append(arabicWord)
                                         }
                                         lastIndex = matchResult.range.last + 1
@@ -152,7 +160,7 @@ fun SufaraText(
                         FlowRow(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 24.dp),
+                                .padding(horizontal = 8.dp, vertical = 24.dp), 
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalArrangement = Arrangement.spacedBy(32.dp)
                         ) {
@@ -161,15 +169,14 @@ fun SufaraText(
                                     key(exampleText) {
                                         val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
                                         var scaleMultiplier by remember { mutableFloatStateOf(1f) }
-                                        
-                                        val currentExampleSize = finalArabicSize * 1.9f * scaleMultiplier
+                                        val currentExampleSize = finalArabicSize * 2.2f * scaleMultiplier
                                         
                                         Box(contentAlignment = Alignment.Center) {
                                             exampleRenderer.Render(
                                                 text = exampleText,
                                                 action = action,
                                                 globalType = globalType,
-                                                arabicFont = arabicFont,
+                                                arabicFont = exampleArabicFont,
                                                 fontSize = currentExampleSize,
                                                 textGlow = textGlow,
                                                 redGlow = redGlow,

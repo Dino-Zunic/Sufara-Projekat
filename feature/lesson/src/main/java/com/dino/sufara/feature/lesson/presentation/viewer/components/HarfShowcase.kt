@@ -38,33 +38,32 @@ fun HarfShowcase(symbol: String) {
     
     val tatweel = "ـ"
     
-    // Lista harfova koji se NE spajaju sa narednim (levim) slovom
+    // ИСПРАВКА: Додати ة и لا у логику
     val nonConnectingLetters = setOf('ا', 'د', 'ذ', 'ر', 'ز', 'و', 'أ', 'إ', 'ؤ', 'ء', 'ة', 'ى')
-    val isNonConnecting = symbol.firstOrNull() in nonConnectingLetters
+    val isNonConnecting = symbol.firstOrNull() in nonConnectingLetters || symbol == "لا" || symbol == "ة"
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp, top = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (isNonConnecting) {
-            // 1. SLUČAJ: Ne spaja se (Samo 2 oblika u redu)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Čitamo sa desna na levo, pa je levi deo ekrana "na kraju"
+                // ИСПРАВКА ЛАБЕЛА
                 HarfFormItem(
                     text = "$tatweel$symbol", 
-                    label = "у средини\nи на крају", 
+                    label = "спојено", 
                     font = arabicFont, 
                     color = GoldBase, 
                     bodyColor = bodyColor, 
-                    fontSize = 110.sp // Manje od glavnog, veće od ona 3
+                    fontSize = 110.sp 
                 )
                 HarfFormItem(
                     text = symbol, 
-                    label = "самостално\nи на почетку", 
+                    label = "одвојено", 
                     font = arabicFont, 
                     color = GoldBase, 
                     bodyColor = bodyColor, 
@@ -72,7 +71,6 @@ fun HarfShowcase(symbol: String) {
                 )
             }
         } else {
-            // 2. SLUČAJ: Spaja se normalno (1 veliki + 3 mala)
             HarfFormItem(
                 text = symbol, 
                 label = "самостално", 
@@ -112,7 +110,6 @@ private fun HarfFormItem(
     shadow: Shadow? = null
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Optimizovana komponenta koja eliminiše višak prostora
         TightHarfText(
             text = text,
             font = font,
@@ -126,7 +123,7 @@ private fun HarfFormItem(
             color = bodyColor.copy(alpha = 0.6f),
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
-            lineHeight = 16.sp, // Da bi tekst u dva reda (kod nespajajućih) bio lepši
+            lineHeight = 16.sp,
             modifier = Modifier.padding(top = 4.dp)
         )
     }
@@ -141,7 +138,6 @@ private fun TightHarfText(
     color: Color,
     shadow: Shadow? = null
 ) {
-    // Ova konfiguracija reže sav nepotrebni prostor iznad i ispod fonta
     val textStyle = TextStyle(
         fontFamily = font,
         fontSize = fontSize,
@@ -154,8 +150,6 @@ private fun TightHarfText(
         )
     )
 
-    // unbounded = true omogućava da font slobodno iscrta donje crte (poput Ra ili Vaw) 
-    // van svojih granica bez odsecanja, dok sam Box zauzima minimalan mogući prostor.
     Box(
         modifier = Modifier.wrapContentHeight(unbounded = true),
         contentAlignment = Alignment.Center
@@ -163,7 +157,7 @@ private fun TightHarfText(
         Text(
             text = text,
             style = textStyle,
-            modifier = Modifier.padding(vertical = 4.dp) // Minimalni sigurnosni bafer
+            modifier = Modifier.padding(vertical = 4.dp) 
         )
     }
 }

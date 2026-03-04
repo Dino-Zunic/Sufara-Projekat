@@ -33,7 +33,8 @@ fun TheoryStepScreen(
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
-        if (symbol.length == 1 && symbol != ".") {
+        val isHarf = (symbol.length == 1 && symbol != ".") || symbol == "لا"
+        if (isHarf) {
             HarfShowcase(symbol = symbol)
         }
         

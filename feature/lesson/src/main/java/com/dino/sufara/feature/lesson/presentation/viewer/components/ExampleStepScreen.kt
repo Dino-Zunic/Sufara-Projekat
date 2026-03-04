@@ -91,7 +91,8 @@ fun ExampleStepScreen(
     }
     val textGlow = remember(glowColor) { androidx.compose.ui.graphics.Shadow(color = glowColor, blurRadius = 14f) }
     val redGlow = remember { androidx.compose.ui.graphics.Shadow(color = MoltenRed.copy(alpha = 0.6f), blurRadius = 16f) }
-    val globalType = remember(symbol) { if (symbol.length == 1 && symbol != ".") HighlightType.HARF else HighlightType.HARAKAH }
+    val isHarf = (symbol.length == 1 && symbol != ".") || symbol == "لا"
+    val globalType = remember(symbol) { if (isHarf) HighlightType.HARF else HighlightType.HARAKAH }
 
     Column(
         modifier = Modifier
