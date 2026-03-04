@@ -1,19 +1,24 @@
-IZVEŠTAJ O PROJEKTU - Tue 03 Mar 2026 05:13:28 AM CET
+IZVEŠTAJ O PROJEKTU - Wed 04 Mar 2026 05:38:45 AM CET
 ================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/repository/LocalAssetLessonRepository.kt
 ================================================================================
 package com.dino.sufara.feature.lesson.data.repository
 
 import android.content.Context
+import com.dino.sufara.feature.lesson.data.local.LessonProgressEntity
+import com.dino.sufara.feature.lesson.data.local.SufaraDao
 import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.domain.model.LessonStatus
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
 
-class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara.feature.lesson.domain.repository.LessonRepository {
+class LocalAssetLessonRepository(
+    private val context: Context,
+    private val dao: SufaraDao 
+) : com.dino.sufara.feature.lesson.domain.repository.LessonRepository {
 
-    // Pomoćna funkcija za čitanje simbola iz fajla
     private fun getSymbols(): List<String> {
         return try {
             context.assets.open("lekcije/симболи.md").bufferedReader().use { it.readText() }
@@ -23,39 +28,43 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
     override suspend fun getAllLessons(): List<Lesson> = withContext(Dispatchers.IO) {
         val allAssets = context.assets.list("lekcije") ?: emptyArray()
         val symbols = getSymbols()
-
-        // Filtriramo samo prave foldere (koji počinju brojem, npr. "001") da ne bi pucalo na fajlovima
         val validFolders = allAssets.filter { it.firstOrNull()?.isDigit() == true }.sorted()
 
+        val progressList = dao.getAllLessonProgress()
+        val progressMap = progressList.associateBy { it.lessonId }
+
         validFolders.mapIndexedNotNull { index, folderName ->
+            val idPart = folderName.substringBefore(" ")
             val rawSymbol = symbols.getOrNull(index)?.trim() ?: "."
             val finalSymbol = if (rawSymbol == ".") "📖" else rawSymbol
-            parseLessonFolder(folderName, finalSymbol)
+            
+            var status = progressMap[idPart]?.status
+            if (status == null) {
+                status = if (idPart == "001") LessonStatus.UNLOCKED else LessonStatus.LOCKED
+                dao.updateLessonProgress(LessonProgressEntity(lessonId = idPart, status = status))
+            }
+
+            parseLessonFolder(folderName, finalSymbol, status)
         }
     }
 
-    // ISPRAVKA: Ovaj metod sada traži folder i vraća tačan simbol umjesto hardkodovane knjige!
     override suspend fun getLessonById(id: String): Lesson? = withContext(Dispatchers.IO) {
-        // Izvlačimo samo broj lekcije (npr. "004") u slučaju da je proslijeđen cijeli naziv
         val numericId = id.substringBefore(" ") 
-        
-        // Vraćamo lekciju koja ima sve perfektno parsirano, uključujući i pravi simbol!
         getAllLessons().find { it.id == numericId }
     }
 
-    // Ovo je naša logika za čitanje fajlova
-    private suspend fun parseLessonFolder(folderName: String, symbol: String): Lesson? = withContext(Dispatchers.IO) {
+    private suspend fun parseLessonFolder(folderName: String, symbol: String, status: LessonStatus): Lesson? = withContext(Dispatchers.IO) {
         try {
             val basePath = "lekcije/$folderName"
             val steps = mutableListOf<LessonStep>()
+            val idPart = folderName.substringBefore(" ")
+            val titlePart = folderName.substringAfter(" ")
 
             val lekcijaText = readFile(basePath, "лекција.md")
-            val dodatakText = readFile(basePath, "додатак.md") // Čitamo dodatak unaprijed
+            val dodatakText = readFile(basePath, "додатак.md")
 
             if (lekcijaText != null) {
-                // Pakujemo lekciju i dodatak zajedno
                 steps.add(LessonStep.Theory("Теорија", lekcijaText, dodatakText))
-                
                 if (context.assets.list(basePath)?.contains("исходиште.png") == true) {
                     steps.add(LessonStep.ImageInfo("file:///android_asset/$basePath/исходиште.png"))
                 }
@@ -63,7 +72,7 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
 
             val kvizText = readFile(basePath, "квиз.md")
             if (kvizText != null) {
-                steps.addAll(parseQuiz(kvizText))
+                steps.addAll(parseQuiz(idPart, kvizText)) 
             }
 
             val primeriText = readFile(basePath, "примери.md")
@@ -73,10 +82,7 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
                 }
             }
 
-            val idPart = folderName.substringBefore(" ")
-            val titlePart = folderName.substringAfter(" ")
-
-            Lesson(id = idPart, title = titlePart, symbol = symbol, steps = steps)
+            Lesson(id = idPart, title = titlePart, symbol = symbol, status = status, steps = steps)
         } catch (e: Exception) {
             null
         }
@@ -88,16 +94,18 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
         } catch (e: FileNotFoundException) { null }
     }
 
-    private fun parseQuiz(text: String): List<LessonStep.Quiz> {
+    private fun parseQuiz(lessonId: String, text: String): List<LessonStep.Quiz> {
         val quizzes = mutableListOf<LessonStep.Quiz>()
         var currentQuestion = ""
         var currentAnswers = mutableListOf<String>()
+        var questionIndex = 1 
 
         text.lines().forEach { line ->
             if (line.isNotBlank()) {
                 if (line.trim().first().isDigit() && !line.startsWith(" ") && !line.startsWith("\t")) {
                     if (currentQuestion.isNotEmpty() && currentAnswers.isNotEmpty()) {
-                        quizzes.add(LessonStep.Quiz(currentQuestion, currentAnswers, currentAnswers.first()))
+                        quizzes.add(LessonStep.Quiz("${lessonId}_$questionIndex", currentQuestion, currentAnswers, currentAnswers.first()))
+                        questionIndex++
                     }
                     currentQuestion = line.substringAfter(".").trim()
                     currentAnswers = mutableListOf()
@@ -107,7 +115,7 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
             }
         }
         if (currentQuestion.isNotEmpty() && currentAnswers.isNotEmpty()) {
-            quizzes.add(LessonStep.Quiz(currentQuestion, currentAnswers, currentAnswers.first()))
+            quizzes.add(LessonStep.Quiz("${lessonId}_$questionIndex", currentQuestion, currentAnswers, currentAnswers.first()))
         }
         return quizzes
     }
@@ -116,9 +124,87 @@ class LocalAssetLessonRepository(private val context: Context) : com.dino.sufara
         try {
             context.assets.open("lekcije/cinjenice.md").bufferedReader().readLines().filter { it.isNotBlank() }
         } catch (e: Exception) {
-            listOf("Учи у име Господара твога који ствара...") // Сигурносна порука ако фајл фали
+            listOf("Учи у име Господара твога који ствара...") 
         }
     }
+}-e 
+
+
+================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/local/AppDatabase.kt
+================================================================================
+package com.dino.sufara.feature.lesson.data.local
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+
+@Database(
+    entities = [LessonProgressEntity::class, QuizProgressEntity::class],
+    version = 1,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract val dao: SufaraDao
+}-e 
+
+
+================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/local/Entities.kt
+================================================================================
+package com.dino.sufara.feature.lesson.data.local
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import com.dino.sufara.feature.lesson.domain.model.LessonStatus
+
+@Entity(tableName = "lesson_progress")
+data class LessonProgressEntity(
+    @PrimaryKey val lessonId: String,
+    val status: LessonStatus = LessonStatus.LOCKED,
+    val completedAt: Long? = null
+)
+
+@Entity(tableName = "quiz_progress")
+data class QuizProgressEntity(
+    @PrimaryKey val questionId: String, 
+    val lessonId: String,
+    val nextReviewDate: Long = 0L, 
+    val intervalDays: Int = 0,
+    val consecutiveCorrectAnswers: Int = 0,
+    val easinessFactor: Float = 2.5f 
+)-e 
+
+
+================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/local/Dao.kt
+================================================================================
+package com.dino.sufara.feature.lesson.data.local
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface SufaraDao {
+    @Query("SELECT * FROM lesson_progress")
+    suspend fun getAllLessonProgress(): List<LessonProgressEntity>
+
+    @Query("SELECT * FROM lesson_progress")
+    fun getAllLessonProgressFlow(): Flow<List<LessonProgressEntity>>
+
+    @Query("SELECT * FROM lesson_progress WHERE lessonId = :id LIMIT 1")
+    suspend fun getLessonProgress(id: String): LessonProgressEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateLessonProgress(progress: LessonProgressEntity)
+    
+    @Query("SELECT * FROM quiz_progress WHERE lessonId = :lessonId")
+    suspend fun getQuizProgressForLesson(lessonId: String): List<QuizProgressEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateQuizProgress(progress: QuizProgressEntity)
 }-e 
 
 
@@ -127,10 +213,13 @@ PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/mo
 ================================================================================
 package com.dino.sufara.feature.lesson.domain.model
 
+enum class LessonStatus { LOCKED, UNLOCKED, COMPLETED }
+
 data class Lesson(
     val id: String,
     val title: String,
     val symbol: String,
+    val status: LessonStatus,
     val steps: List<LessonStep>
 )-e 
 
@@ -143,7 +232,7 @@ package com.dino.sufara.feature.lesson.domain.model
 sealed class LessonStep {
     data class Theory(val title: String, val text: String, val dodatakText: String? = null) : LessonStep()
     data class ImageInfo(val imagePath: String) : LessonStep()
-    data class Quiz(val question: String, val answers: List<String>, val correctAnswer: String) : LessonStep()
+    data class Quiz(val id: String, val question: String, val answers: List<String>, val correctAnswer: String) : LessonStep()
     data class Example(val text: String) : LessonStep()
 }-e 
 
@@ -353,6 +442,29 @@ object ArabicWordSplitter {
 
 
 ================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/util/SoundSimulator.kt
+================================================================================
+package com.dino.sufara.feature.lesson.domain.util
+
+import kotlinx.coroutines.delay
+import kotlin.random.Random
+
+object SoundSimulator {
+    /**
+     * Simulira puštanje zvuka. 
+     * @param onStart Poziva se kada "zvuk" krene
+     * @param onEnd Poziva se kada "zvuk" završi
+     */
+    suspend fun playMockSound(onStart: () -> Unit, onEnd: () -> Unit) {
+        val duration = Random.nextLong(300, 2000)
+        onStart()
+        delay(duration)
+        onEnd()
+    }
+}-e 
+
+
+================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/util/HarfHighlighter.kt
 ================================================================================
 package com.dino.sufara.feature.lesson.domain.util
@@ -513,9 +625,9 @@ fun LessonViewerScreen(
         ) {
             LinearProgressIndicator(
                 progress = progress,
-                modifier = Modifier.weight(1f).height(4.dp), // Суптилније (4.dp уместо 12.dp)
-                color = GoldBase, // Злато пуни
-                trackColor = BlueMidnight // Тамно плава подлога
+                modifier = Modifier.weight(1f).height(4.dp), 
+                color = GoldBase, 
+                trackColor = BlueMidnight 
             )
         }
 
@@ -523,7 +635,15 @@ fun LessonViewerScreen(
             is LessonStep.Theory -> TheoryStepScreen(step = currentStep, lessonId = lesson!!.id, symbol = lesson!!.symbol, onNextClick = handleNextStep)
             is LessonStep.ImageInfo -> ImageInfoStepScreen(step = currentStep, onNextClick = handleNextStep)
             is LessonStep.Quiz -> QuizStepScreen(step = currentStep, stepIndex = currentIndex, onNextClick = handleNextStep)
-            is LessonStep.Example -> ExampleStepScreen(step = currentStep, lessonId = lesson!!.id, symbol = lesson!!.symbol, onNextClick = handleNextStep)
+            // ИСПРАВКА: Овде је додат stepIndex = currentIndex
+            is LessonStep.Example -> ExampleStepScreen(
+                step = currentStep, 
+                lessonId = lesson!!.id, 
+                symbol = lesson!!.symbol, 
+                stepIndex = currentIndex,
+                onNextClick = handleNextStep,
+                onPrevClick = { viewModel.previousStep() } 
+            )
         }
     }
 }-e 
@@ -535,14 +655,19 @@ PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentat
 package com.dino.sufara.feature.lesson.presentation.viewer.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dino.sufara.core.designsystem.GoldBase
@@ -553,7 +678,6 @@ import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
-import androidx.compose.material3.HorizontalDivider
 
 @Composable
 fun HarfShowcase(symbol: String) {
@@ -566,65 +690,128 @@ fun HarfShowcase(symbol: String) {
         BodyTextColorTheme.MUTED_GOLD -> TextMutedGold
     }
     
-    // Арапски карактер за продужавање линије (Tatweel)
     val tatweel = "ـ"
+    
+    // ИСПРАВКА: Додати ة и لا у логику
+    val nonConnectingLetters = setOf('ا', 'د', 'ذ', 'ر', 'ز', 'و', 'أ', 'إ', 'ؤ', 'ء', 'ة', 'ى')
+    val isNonConnecting = symbol.firstOrNull() in nonConnectingLetters || symbol == "لا" || symbol == "ة"
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp, top = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. Самостално (Велики приказ)
-        Text(
-            text = symbol,
-            fontFamily = arabicFont,
-            fontSize = 140.sp, // Огромно
-            color = GoldBase,
-            style = TextStyle(shadow = Shadow(color = GoldBase.copy(alpha = 0.5f), blurRadius = 20f))
-        )
-        Text(
-            text = "самостално".asScript(),
-            color = bodyColor.copy(alpha = 0.6f),
-            fontSize = 14.sp
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // 2. Контекстуални облици
-        // Пошто је екран LTR (Left-to-Right), ређамо их визуелно: Крај, Средина, Почетак
-        // Тако ће симулирати читање здесна налево!
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            // Лево на екрану: НА КРАЈУ (Татвил + Харф)
-            HarfFormItem(text = "$tatweel$symbol", label = "на крају", font = arabicFont, color = GoldBase, bodyColor = bodyColor)
+        if (isNonConnecting) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // ИСПРАВКА ЛАБЕЛА
+                HarfFormItem(
+                    text = "$tatweel$symbol", 
+                    label = "спојено", 
+                    font = arabicFont, 
+                    color = GoldBase, 
+                    bodyColor = bodyColor, 
+                    fontSize = 110.sp 
+                )
+                HarfFormItem(
+                    text = symbol, 
+                    label = "одвојено", 
+                    font = arabicFont, 
+                    color = GoldBase, 
+                    bodyColor = bodyColor, 
+                    fontSize = 110.sp
+                )
+            }
+        } else {
+            HarfFormItem(
+                text = symbol, 
+                label = "самостално", 
+                font = arabicFont, 
+                color = GoldBase, 
+                bodyColor = bodyColor, 
+                fontSize = 140.sp,
+                shadow = Shadow(color = GoldBase.copy(alpha = 0.5f), blurRadius = 20f)
+            )
             
-            // У средини екрана: У СРЕДИНИ (Татвил + Харф + Татвил)
-            HarfFormItem(text = "$tatweel$symbol$tatweel", label = "у средини", font = arabicFont, color = GoldBase, bodyColor = bodyColor)
+            Spacer(modifier = Modifier.height(32.dp))
             
-            // Десно на екрану: НА ПОЧЕТКУ (Харф + Татвил)
-            HarfFormItem(text = "$symbol$tatweel", label = "на почетку", font = arabicFont, color = GoldBase, bodyColor = bodyColor)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HarfFormItem(text = "$tatweel$symbol", label = "на крају", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
+                HarfFormItem(text = "$tatweel$symbol$tatweel", label = "у средини", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
+                HarfFormItem(text = "$symbol$tatweel", label = "на почетку", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
+            }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = bodyColor.copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth(0.8f))
+        Spacer(modifier = Modifier.height(24.dp))
+        Divider(color = bodyColor.copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth(0.8f))
     }
 }
 
 @Composable
-private fun HarfFormItem(text: String, label: String, font: FontFamily, color: Color, bodyColor: Color) {
+private fun HarfFormItem(
+    text: String, 
+    label: String, 
+    font: FontFamily, 
+    color: Color, 
+    bodyColor: Color, 
+    fontSize: TextUnit,
+    shadow: Shadow? = null
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
+        TightHarfText(
             text = text,
-            fontFamily = font,
-            fontSize = 65.sp, // Отприлике 3 заједно чине величину једног главног
-            color = color
+            font = font,
+            fontSize = fontSize,
+            color = color,
+            shadow = shadow
         )
+        
         Text(
             text = label.asScript(),
             color = bodyColor.copy(alpha = 0.6f),
             fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 16.sp,
             modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+}
+
+@Suppress("DEPRECATION")
+@Composable
+private fun TightHarfText(
+    text: String,
+    font: FontFamily,
+    fontSize: TextUnit,
+    color: Color,
+    shadow: Shadow? = null
+) {
+    val textStyle = TextStyle(
+        fontFamily = font,
+        fontSize = fontSize,
+        color = color,
+        shadow = shadow,
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
+        lineHeightStyle = LineHeightStyle(
+            alignment = LineHeightStyle.Alignment.Proportional,
+            trim = LineHeightStyle.Trim.Both
+        )
+    )
+
+    Box(
+        modifier = Modifier.wrapContentHeight(unbounded = true),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = textStyle,
+            modifier = Modifier.padding(vertical = 4.dp) 
         )
     }
 }-e 
@@ -638,6 +825,7 @@ package com.dino.sufara.feature.lesson.presentation.viewer.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -654,6 +842,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import com.dino.sufara.core.designsystem.*
 import com.dino.sufara.feature.lesson.domain.util.HarfHighlighter
 import com.dino.sufara.feature.lesson.domain.util.HighlightType
@@ -662,7 +852,6 @@ import com.dino.sufara.feature.lesson.presentation.settings.BodyTextColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.GlowColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
-// НОВО: Импорт наше архитектуре!
 import com.dino.sufara.feature.lesson.presentation.viewer.components.renderers.RendererFactory
 
 sealed class TextBlock {
@@ -670,6 +859,7 @@ sealed class TextBlock {
     data class ExampleGroup(val examples: List<String>) : TextBlock()
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SufaraText(
     text: String,
@@ -682,12 +872,19 @@ fun SufaraText(
 ) {
     val settings = LocalSufaraSettings.current
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
-    val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
+    
+    // Развајамо фонтове: Један за примере, други фиксно Noto Naskh за текст
+    val exampleArabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
+    val inlineArabicFont = SufaraFonts.getArabicFont("Noto Naskh")
+    
     val scriptText = text.asScript()
     
     val finalBaseSize = baseFontSize * settings.cyrillicSizeMultiplier
     val finalArabicSize = arabicFontSize * settings.arabicSizeMultiplier
-    val finalLineHeight = lineHeight * maxOf(settings.cyrillicSizeMultiplier, settings.arabicSizeMultiplier * 1.5f)
+    
+    // ИСПРАВКА: Нормалан проред и величина за арапски унутар обичног текста
+    val paragraphLineHeight = lineHeight * settings.cyrillicSizeMultiplier
+    val inlineArabicSize = finalBaseSize * 1.4f 
 
     val bodyColor = when(settings.bodyTextColorTheme) {
         BodyTextColorTheme.PARCHMENT -> TextParchment
@@ -707,12 +904,12 @@ fun SufaraText(
 
     val cyrillicLatinRegex = remember { Regex("[a-zA-Zа-яА-ЯђјљњћџЂЈЉЊЋЏčćžšđČĆŽŠĐ]+") }
     val arabicRegex = remember { Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF]+") }
+    
+    // ИСПРАВКА: Додат изузетак за Лам-Елиф
+    val isHarf = (symbol.length == 1 && symbol != ".") || symbol == "لا"
+    
     val globalType: HighlightType = remember(symbol) {
-        if (symbol.length == 1 && symbol != ".") {
-            HighlightType.HARF
-        } else {
-            HighlightType.HARAKAH
-        }
+        if (isHarf) HighlightType.HARF else HighlightType.HARAKAH
     }
 
     val blocks = remember(scriptText) {
@@ -748,7 +945,6 @@ fun SufaraText(
         result
     }
 
-    // НОВО: Дохватамо прави алгоритам из Фабрике
     val exampleRenderer = remember(settings.arabicFont) {
         RendererFactory.getRenderer(settings.arabicFont)
     }
@@ -758,7 +954,7 @@ fun SufaraText(
             when (block) {
                 is TextBlock.Paragraph -> {
                     Text(
-                        lineHeight = finalLineHeight,
+                        lineHeight = paragraphLineHeight, // ИСПРАВКА ПРОРЕДА
                         text = buildAnnotatedString {
                             val parts = block.text.split("**")
                             parts.forEachIndexed { index, part ->
@@ -768,7 +964,8 @@ fun SufaraText(
                                         append(part.substring(lastIndex, matchResult.range.first))
                                         val arabicWord = matchResult.value
                                         
-                                        withStyle(SpanStyle(fontFamily = arabicFont, fontSize = finalArabicSize, color = bodyColor)) {
+                                        // ИСПРАВКА: Користимо inlineArabicFont и inlineArabicSize
+                                        withStyle(SpanStyle(fontFamily = inlineArabicFont, fontSize = inlineArabicSize, color = bodyColor)) {
                                             append(arabicWord)
                                         }
                                         lastIndex = matchResult.range.last + 1
@@ -781,32 +978,39 @@ fun SufaraText(
                 }
                 
                 is TextBlock.ExampleGroup -> {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        block.examples.forEach { exampleText ->
-                            key(exampleText) {
-                                val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
-                                var scaleMultiplier by remember { mutableFloatStateOf(1f) }
-                                val currentExampleSize = finalArabicSize * 1.5f * scaleMultiplier
-                                
-                                // НОВО: Једноставан позив Рендерера! Сва ружна логика је нестала.
-                                exampleRenderer.Render(
-                                    text = exampleText,
-                                    action = action,
-                                    globalType = globalType,
-                                    arabicFont = arabicFont,
-                                    fontSize = currentExampleSize,
-                                    textGlow = textGlow,
-                                    redGlow = redGlow,
-                                    onTextLayout = { textLayoutResult ->
-                                        if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
-                                            scaleMultiplier *= 0.9f
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 24.dp), 
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalArrangement = Arrangement.spacedBy(32.dp)
+                        ) {
+                            block.examples.forEach { exampleText ->
+                                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                    key(exampleText) {
+                                        val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
+                                        var scaleMultiplier by remember { mutableFloatStateOf(1f) }
+                                        val currentExampleSize = finalArabicSize * 2.2f * scaleMultiplier
+                                        
+                                        Box(contentAlignment = Alignment.Center) {
+                                            exampleRenderer.Render(
+                                                text = exampleText,
+                                                action = action,
+                                                globalType = globalType,
+                                                arabicFont = exampleArabicFont,
+                                                fontSize = currentExampleSize,
+                                                textGlow = textGlow,
+                                                redGlow = redGlow,
+                                                onTextLayout = { textLayoutResult ->
+                                                    if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
+                                                        scaleMultiplier *= 0.9f
+                                                    }
+                                                }
+                                            )
                                         }
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -822,132 +1026,249 @@ PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentat
 ================================================================================
 package com.dino.sufara.feature.lesson.presentation.viewer.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dino.sufara.core.designsystem.GoldBase
 import com.dino.sufara.core.designsystem.IpaFontFamily
+import com.dino.sufara.core.designsystem.MoltenRed
 import com.dino.sufara.core.designsystem.TextSilver
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
-import com.dino.sufara.feature.lesson.domain.util.ArabicIpaTranscriber
-import com.dino.sufara.feature.lesson.domain.util.ArabicWordSplitter
-import com.dino.sufara.feature.lesson.domain.util.asScript
+import com.dino.sufara.feature.lesson.domain.util.*
+import com.dino.sufara.feature.lesson.presentation.settings.GlowColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+import com.dino.sufara.feature.lesson.presentation.viewer.animations.getCardTransition
+import com.dino.sufara.feature.lesson.presentation.viewer.components.renderers.RendererFactory
+import kotlinx.coroutines.launch
 
 @Composable
 fun ExampleStepScreen(
     step: LessonStep.Example,
     lessonId: String, 
     symbol: String,
-    onNextClick: () -> Unit
+    stepIndex: Int,
+    onNextClick: () -> Unit,
+    onPrevClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val settings = LocalSufaraSettings.current
     val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
-
-    val ipaTranscription = remember(step.text) {
-        ArabicIpaTranscriber.transcribe(step.text)
-    }
+    val exampleRenderer = remember(settings.arabicFont) { RendererFactory.getRenderer(settings.arabicFont) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val scope = rememberCoroutineScope()
     
-    // НОВО: Стање за проширење картице
-    var isExpanded by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(false) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "Scale"
+    )
+
+    val SpeakerIcon = remember {
+        ImageVector.Builder(name = "Speaker", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply {
+            path(fill = SolidColor(Color.Black)) { 
+                moveTo(3f, 9f); lineTo(7f, 9f); lineTo(12f, 4f); lineTo(12f, 20f); lineTo(7f, 15f); lineTo(3f, 15f); close()
+            }
+            path(fill = SolidColor(Color.Transparent), stroke = SolidColor(Color.Black), strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round) {
+                moveTo(15.5f, 9.5f); quadTo(17f, 12f, 15.5f, 14.5f)
+            }
+            path(fill = SolidColor(Color.Transparent), stroke = SolidColor(Color.Black), strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round) {
+                moveTo(18.5f, 6.5f); quadTo(21.5f, 12f, 18.5f, 17.5f)
+            }
+        }.build()
+    }
+
+    var swipeOffset by remember { mutableFloatStateOf(0f) }
+
+    val glowColor = when(settings.glowColorTheme) {
+        GlowColorTheme.GOLD -> GoldBase.copy(alpha = 0.5f)
+        GlowColorTheme.AZURE -> Color(0xFF00BFFF).copy(alpha = 0.5f)
+        GlowColorTheme.PURPLE -> Color(0xFF9D4EDD).copy(alpha = 0.5f)
+        GlowColorTheme.NONE -> Color.Transparent
+    }
+    val textGlow = remember(glowColor) { androidx.compose.ui.graphics.Shadow(color = glowColor, blurRadius = 14f) }
+    val redGlow = remember { androidx.compose.ui.graphics.Shadow(color = MoltenRed.copy(alpha = 0.6f), blurRadius = 16f) }
+    val isHarf = (symbol.length == 1 && symbol != ".") || symbol == "لا"
+    val globalType = remember(symbol) { if (isHarf) HighlightType.HARF else HighlightType.HARAKAH }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (swipeOffset > 150) onPrevClick() 
+                        else if (swipeOffset < -150) onNextClick() 
+                        swipeOffset = 0f
+                    }
+                ) { change, dragAmount ->
+                    change.consume()
+                    swipeOffset += dragAmount
+                }
+            },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.weight(1f))
+        AnimatedContent(
+            targetState = Pair(stepIndex, step),
+            transitionSpec = { 
+                val isForward = targetState.first > initialState.first
+                getCardTransition(settings.cardAnimation, isForward)
+            },
+            label = "CardAnimation",
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) { (currentIndex, currentStep) ->
+            
+            val action = remember(currentStep.text, lessonId, symbol) { HarfHighlighter.analyze(currentStep.text, lessonId, symbol) }
+            val ipaTranscription = remember(currentStep.text) { ArabicIpaTranscriber.transcribe(currentStep.text) }
+            var currentFontSize by remember(currentStep.text) { mutableStateOf(150.sp) }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .animateContentSize() // Ово чини да се картица глатко прошири
-                .clip(RoundedCornerShape(24.dp))
-                .clickable { isExpanded = !isExpanded }, // Отвара/затвара олакшицу
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally, 
-                verticalArrangement = Arrangement.Center,
+            Card(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 350.dp) // Обезбеђујемо минималну висину уместо фиксног aspectRatio
-                    .padding(vertical = 32.dp, horizontal = 16.dp)
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(24.dp))
+                    .clickable(
+                        interactionSource = interactionSource, 
+                        indication = null 
+                    ) { 
+                        if (!isPlaying) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            scope.launch {
+                                SoundSimulator.playMockSound(
+                                    onStart = { isPlaying = true },
+                                    onEnd = { isPlaying = false }
+                                )
+                            }
+                        }
+                    },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                SufaraText(
-                    text = step.text,
-                    modifier = Modifier.wrapContentSize(unbounded = true), 
-                    baseFontSize = 32.sp,
-                    arabicFontSize = 100.sp,
-                    lineHeight = 180.sp, 
-                    lessonId = lessonId, 
-                    symbol = symbol
-                )
-
-                if (settings.showIpa && ipaTranscription.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "[ $ipaTranscription ]",
-                        color = TextSilver.copy(alpha = 0.6f),
-                        fontFamily = IpaFontFamily,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Light,
-                        letterSpacing = 2.sp
+                Box(modifier = Modifier.fillMaxSize()) {
+                    
+                    Icon(
+                        imageVector = SpeakerIcon, 
+                        contentDescription = null,
+                        tint = if (isPlaying) GoldBase else TextSilver.copy(alpha = 0.4f),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(24.dp)
+                            .size(28.dp)
+                            .graphicsLayer {
+                                if (isPlaying) {
+                                    scaleX = pulseScale
+                                    scaleY = pulseScale
+                                }
+                            }
                     )
-                }
 
-                AnimatedVisibility(visible = isExpanded) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Spacer(modifier = Modifier.height(16.dp)) // Смањено са 24
-                        Divider(color = TextSilver.copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth(0.5f))
-                        Spacer(modifier = Modifier.height(12.dp)) // Смањено са 24
-                        
-                        Text(
-                            text = ArabicWordSplitter.splitWord(step.text),
-                            fontFamily = arabicFont,
-                            fontSize = 36.sp, // Мало мањи фонт да не гута простор
-                            color = TextSilver.copy(alpha = 0.8f) 
-                        )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally, 
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 24.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight(unbounded = true),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            exampleRenderer.Render(
+                                text = currentStep.text,
+                                action = action,
+                                globalType = globalType,
+                                arabicFont = arabicFont,
+                                fontSize = currentFontSize,
+                                textGlow = textGlow,
+                                redGlow = redGlow,
+                                onTextLayout = { textLayoutResult ->
+                                    if (textLayoutResult.hasVisualOverflow || textLayoutResult.didOverflowWidth) {
+                                        if (currentFontSize.value > 30f) { 
+                                            currentFontSize *= 0.9f
+                                        }
+                                    }
+                                }
+                            )
+                        }
+
+                        if (settings.showSeparatedLetters) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Divider(color = TextSilver.copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth(0.5f))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Text(
+                                text = ArabicWordSplitter.splitWord(currentStep.text),
+                                fontFamily = arabicFont,
+                                fontSize = 42.sp, 
+                                color = TextSilver.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        if (settings.showIpa && ipaTranscription.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "[ $ipaTranscription ]",
+                                color = TextSilver.copy(alpha = 0.5f),
+                                fontFamily = IpaFontFamily,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Light,
+                                letterSpacing = 2.sp
+                            )
+                        }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary)
-                .clickable { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.PlayArrow, contentDescription = "Звук", tint = Color.White, modifier = Modifier.size(32.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Button(
+                onClick = onPrevClick, 
+                modifier = Modifier.weight(1f).height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Text("Nazad".asScript(), color = MaterialTheme.colorScheme.onSurface)
+            }
+            
+            Button(
+                onClick = onNextClick, 
+                modifier = Modifier.weight(1f).height(56.dp)
+            ) {
+                Text("Dalje".asScript())
+            }
         }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(onClick = onNextClick, modifier = Modifier.fillMaxWidth()) {
-            Text("Даље".asScript())
-        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }-e 
 
@@ -1133,6 +1454,11 @@ fun TheoryStepScreen(
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
+        val isHarf = (symbol.length == 1 && symbol != ".") || symbol == "لا"
+        if (isHarf) {
+            HarfShowcase(symbol = symbol)
+        }
+        
         SufaraText(text = step.text, lessonId = lessonId, symbol = symbol)
 
         if (step.dodatakText != null) {
@@ -1272,7 +1598,7 @@ PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentat
 package com.dino.sufara.feature.lesson.presentation.viewer.components.renderers
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -1298,15 +1624,14 @@ class EmptyExampleRenderer : ArabicExampleRenderer {
         redGlow: Shadow,
         onTextLayout: (TextLayoutResult) -> Unit
     ) {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.wrapContentSize(), contentAlignment = Alignment.Center) {
             Text(
                 text = text,
                 fontFamily = arabicFont,
                 fontSize = fontSize,
-                color = GoldBase, // Sve je zlato
+                color = GoldBase,
                 style = androidx.compose.ui.text.TextStyle(shadow = textGlow),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
                 onTextLayout = onTextLayout
             )
         }
@@ -1505,7 +1830,7 @@ PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentat
 package com.dino.sufara.feature.lesson.presentation.viewer.components.renderers
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -1535,37 +1860,30 @@ class NaiveExampleRenderer : ArabicExampleRenderer {
         redGlow: Shadow,
         onTextLayout: (TextLayoutResult) -> Unit
     ) {
-        // 1. STRIKTNO ODVAJANJE
         val redIndices = mutableSetOf<Int>()
         when {
             globalType == HighlightType.HARAKAH && action is HighlightAction.Harakah -> {
-                // Uzimamo SAMO herekete. Osnovno slovo (supports) ostaje zlatno.
                 redIndices.addAll(action.diacritics)
             }
             globalType == HighlightType.HARF && action is HighlightAction.Harf -> {
-                // Uzimamo SAMO harfove!
                 redIndices.addAll(action.characters)
-                // OBRISANO: redIndices.addAll(action.attachedDiacritics)
             }
         }
 
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.wrapContentSize(), contentAlignment = Alignment.Center) {
             Text(
                 fontFamily = arabicFont,
                 fontSize = fontSize,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
                 onTextLayout = onTextLayout,
                 text = buildAnnotatedString {
                     
-                    // 2. PAMETNO GRUPISANJE NIZOVA
                     var currentColorIsRed = text.isNotEmpty() && 0 in redIndices
                     var currentStartIndex = 0
 
                     for (i in text.indices) {
                         val isRed = i in redIndices
                         
-                        // Kada se boja promeni, zatvaramo prethodni blok i upisujemo ga
                         if (isRed != currentColorIsRed) {
                             val color = if (currentColorIsRed) MoltenRed else GoldBase
                             val shadow = if (currentColorIsRed) redGlow else textGlow
@@ -1579,7 +1897,6 @@ class NaiveExampleRenderer : ArabicExampleRenderer {
                         }
                     }
                     
-                    // Dodajemo poslednji preostali deo teksta
                     if (currentStartIndex < text.length) {
                         val color = if (currentColorIsRed) MoltenRed else GoldBase
                         val shadow = if (currentColorIsRed) redGlow else textGlow
@@ -1807,6 +2124,49 @@ class BlendModeExampleRenderer : ArabicExampleRenderer {
 
 
 ================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/animations/CardAnimations.kt
+================================================================================
+package com.dino.sufara.feature.lesson.presentation.viewer.animations
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.unit.IntOffset
+
+enum class CardAnimationType { SLIDE, SCALE_FADE, TILT_SLIDE, FADE }
+
+@OptIn(ExperimentalAnimationApi::class)
+fun getCardTransition(type: CardAnimationType, isForward: Boolean): ContentTransform {
+    // Punchy (брз и одсечан) ефекат анимације
+    val duration = 250
+    val slideSpec = tween<IntOffset>(durationMillis = duration, easing = FastOutSlowInEasing)
+    val floatSpec = tween<Float>(durationMillis = duration, easing = FastOutSlowInEasing)
+    
+    val offset = if (isForward) 1200 else -1200
+    
+    return when (type) {
+        CardAnimationType.SLIDE -> {
+            (slideInHorizontally(slideSpec) { offset } + fadeIn(floatSpec)) togetherWith
+            (slideOutHorizontally(slideSpec) { -offset } + fadeOut(floatSpec))
+        }
+        CardAnimationType.SCALE_FADE -> {
+            (scaleIn(floatSpec, initialScale = 0.8f) + fadeIn(floatSpec)) togetherWith
+            (scaleOut(floatSpec, targetScale = 0.8f) + fadeOut(floatSpec))
+        }
+        CardAnimationType.TILT_SLIDE -> {
+            val enterOffset = if (isForward) 800 else -800
+            val exitOffset = if (isForward) -400 else 400
+            (slideInHorizontally(slideSpec) { enterOffset } + scaleIn(floatSpec, 0.85f) + fadeIn(floatSpec)) togetherWith
+            (slideOutHorizontally(slideSpec) { exitOffset } + scaleOut(floatSpec, 0.85f) + fadeOut(floatSpec))
+        }
+        CardAnimationType.FADE -> {
+            fadeIn(floatSpec) togetherWith fadeOut(floatSpec)
+        }
+    }
+}-e 
+
+
+================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/viewer/LessonViewerViewModel.kt
 ================================================================================
 package com.dino.sufara.feature.lesson.presentation.viewer
@@ -1866,7 +2226,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed // DODATO
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
@@ -1875,12 +2235,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -1905,7 +2262,6 @@ fun LessonGridScreen(
 ) {
     val lessons by viewModel.lessons.collectAsState()
     val settings = LocalSufaraSettings.current
-    var showTrajectory by remember { mutableStateOf(false) }
     val density = LocalDensity.current
 
     val bodyColor = when(settings.bodyTextColorTheme) {
@@ -1914,7 +2270,6 @@ fun LessonGridScreen(
         BodyTextColorTheme.MUTED_GOLD -> TextMutedGold
     }
 
-    // Izračunavanje Y pozicija za čvorove puta (Sinusoida)
     val nodeYs = remember(lessons.size, density) {
         val spacing = with(density) { 180.dp.toPx() } 
         val amplitude = with(density) { 100.dp.toPx() }
@@ -1946,19 +2301,16 @@ fun LessonGridScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 64.dp, bottom = 120.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // FIX: Koristimo itemsIndexed sa ključem (lesson.id) za stabilnost
             itemsIndexed(
                 items = lessons,
                 key = { _, lesson -> lesson.id }
             ) { index, lesson ->
                 
-                // Bezbedno izvlačenje Y koordinata
                 val startGlobalY = nodeYs.getOrElse(index) { 0f }
                 val endGlobalY = nodeYs.getOrNull(index + 1) ?: (startGlobalY + with(density) { 180.dp.toPx() })
                 val deltaY = endGlobalY - startGlobalY
@@ -1970,28 +2322,7 @@ fun LessonGridScreen(
                     endGlobalY = endGlobalY,
                     deltaY = deltaY,
                     bodyColor = bodyColor,
-                    showTrajectory = showTrajectory,
                     onClick = { onLessonClick(lesson.id) }
-                )
-            }
-        }
-
-        // Debug Switch za prikazivanje matematičke putanje
-        if (settings.isDebugMode) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), shape = CircleShape)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Putanjna".asScript(), color = bodyColor, fontSize = 12.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Switch(
-                    checked = showTrajectory, 
-                    onCheckedChange = { showTrajectory = it }, 
-                    modifier = Modifier.scale(0.7f)
                 )
             }
         }
@@ -2006,7 +2337,6 @@ fun LessonPathNode(
     endGlobalY: Float,
     deltaY: Float,
     bodyColor: Color,
-    showTrajectory: Boolean,
     onClick: () -> Unit
 ) {
     val arabicFont = SufaraFonts.getArabicFont("Noto Naskh")
@@ -2030,25 +2360,6 @@ fun LessonPathNode(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val centerX = size.width / 2
 
-                // Crtanje crvene linije (samo u debug modu)
-                if (showTrajectory) {
-                    val path = Path()
-                    path.moveTo(centerX + getSineX(startGlobalY), circleRadiusPx)
-                    val steps = 40
-                    for (step in 1..steps) {
-                        val f = step.toFloat() / steps
-                        val globalY = startGlobalY + f * deltaY
-                        val localY = circleRadiusPx + (globalY - startGlobalY)
-                        path.lineTo(centerX + getSineX(globalY), localY)
-                    }
-                    drawPath(
-                        path = path, 
-                        color = Color.Red.copy(alpha = 0.5f), 
-                        style = Stroke(width = 4.dp.toPx())
-                    )
-                }
-
-                // Crtanje tačkica između lekcija
                 val dotSpacing = spacing / 5 
                 var nextDotTarget = dotSpacing
                 var arcLen = 0f
@@ -2075,7 +2386,6 @@ fun LessonPathNode(
             }
         }
 
-        // Kružni čvor lekcije
         Column(
             modifier = Modifier
                 .offset(x = with(density) { getSineX(startGlobalY).toDp() })
@@ -2090,7 +2400,6 @@ fun LessonPathNode(
                     .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center
             ) {
-                // Ako je simbol knjiga ili tačka, crtamo ikonicu zvezde (specijalni slučaj)
                 if (lesson.symbol == "📖" || lesson.symbol == ".") {
                     Icon(
                         imageVector = Icons.Default.Star,
@@ -2194,125 +2503,121 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад".asScript(), tint = MaterialTheme.colorScheme.onBackground)
+                Icon(Icons.Default.ArrowBack, contentDescription = "Nazad".asScript(), tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Подешавања".asScript(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+            Text("Podešavanja".asScript(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
         }
         Spacer(modifier = Modifier.height(24.dp))
 
-        // НОВО: Бирач писма
-        Text("Писмо / Script".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Pismo / Script".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = !settings.isCyrillic,
-                onClick = { actions.updateScript(false) },
-                label = { Text("Latinica") }
-            )
-            FilterChip(
-                selected = settings.isCyrillic,
-                onClick = { actions.updateScript(true) },
-                label = { Text("Ћирилица") }
-            )
+            FilterChip(selected = !settings.isCyrillic, onClick = { actions.updateScript(false) }, label = { Text("Latinica") })
+            FilterChip(selected = settings.isCyrillic, onClick = { actions.updateScript(true) }, label = { Text("Ćirilica".asScript()) })
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Приказ уживо:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Text("Prikaz uživo:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(8.dp))
-                SufaraText(text = "Ово је ћирилица.\nА ово је арапски пример:\nبِسْمِ اللَّهِ") // SufaraText сам преводи!
+                SufaraText(text = "Ovo je tekst.\nA ovo je arapski primer:\nبِسْمِ اللَّهِ".asScript())
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
         
-        Text("Боја обичног текста".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Boja običnog teksta".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BodyTextColorTheme.values().forEach { theme ->
-                FilterChip(
-                    selected = settings.bodyTextColorTheme == theme,
-                    onClick = { actions.updateBodyTextColor(theme) },
-                    label = { Text(theme.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                )
+            BodyTextColorTheme.entries.forEach { theme ->
+                FilterChip(selected = settings.bodyTextColorTheme == theme, onClick = { actions.updateBodyTextColor(theme) }, label = { Text(theme.name.lowercase().replaceFirstChar { it.uppercase() }) })
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("Боја сјаја примера (Glow)".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Boja sjaja primjera (Glow)".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlowColorTheme.values().forEach { theme ->
-                FilterChip(
-                    selected = settings.glowColorTheme == theme,
-                    onClick = { actions.updateGlowColor(theme) },
-                    label = { Text(theme.name) }
-                )
+            GlowColorTheme.entries.forEach { theme ->
+                FilterChip(selected = settings.glowColorTheme == theme, onClick = { actions.updateGlowColor(theme) }, label = { Text(theme.name) })
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Text("Фонт за текст".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Font za tekst".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Lora", "Roboto Slab").forEach { font ->
-                FilterChip(
-                    selected = settings.cyrillicFont == font,
-                    onClick = { actions.updateCyrillicFont(font) },
-                    label = { Text(font) }
-                )
+                FilterChip(selected = settings.cyrillicFont == font, onClick = { actions.updateCyrillicFont(font) }, label = { Text(font) })
             }
         }
         
-        Text("Величина: ".asScript() + "${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
-        Slider(
-            value = settings.cyrillicSizeMultiplier,
-            onValueChange = { actions.updateCyrillicSize(it) },
-            valueRange = 0.6f..1.5f
-        )
+        Text("Veličina: ".asScript() + "${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
+        Slider(value = settings.cyrillicSizeMultiplier, onValueChange = { actions.updateCyrillicSize(it) }, valueRange = 0.6f..1.5f)
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Text("Арапски".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Arapski".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Amiri", "Noto Naskh", "KFGQPC").forEach { font ->
-                FilterChip(
-                    selected = settings.arabicFont == font,
-                    onClick = { actions.updateArabicFont(font) },
-                    label = { Text(font) }
-                )
+                FilterChip(selected = settings.arabicFont == font, onClick = { actions.updateArabicFont(font) }, label = { Text(font) })
             }
         }
 
-        Text("Величина: ".asScript() + "${(settings.arabicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
-        Slider(
-            value = settings.arabicSizeMultiplier,
-            onValueChange = { actions.updateArabicSize(it) },
-            valueRange = 0.6f..2.0f 
-        )
+        Text("Veličina: ".asScript() + "${(settings.arabicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
+        Slider(value = settings.arabicSizeMultiplier, onValueChange = { actions.updateArabicSize(it) }, valueRange = 0.6f..2.0f)
 
         Spacer(modifier = Modifier.height(32.dp))
-        Text("Развој".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+
+        Text("Opcije prikaza".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Prikaži transkripciju (IPA)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Switch(checked = settings.showIpa, onCheckedChange = { actions.toggleIpa(it) })
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Prikaži razdvojena slova".asScript(), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+            Switch(checked = settings.showSeparatedLetters, onCheckedChange = { actions.toggleSeparatedLetters(it) })
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text("Анимација картица".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.dino.sufara.feature.lesson.presentation.viewer.animations.CardAnimationType.entries.forEach { anim ->
+                FilterChip(
+                    selected = settings.cardAnimation == anim,
+                    onClick = { actions.updateCardAnimation(anim) },
+                    label = { Text(anim.name) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text("Razvoj".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Debug Mod (Омогућава прескакање квиза)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Text("Debug Mod (Preskakanje kviza)".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Switch(checked = settings.isDebugMode, onCheckedChange = { actions.toggleDebugMode(it) })
         }
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(48.dp))
     }
 }-e 
 
@@ -2371,6 +2676,7 @@ package com.dino.sufara.feature.lesson.presentation.settings
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import com.dino.sufara.feature.lesson.presentation.viewer.animations.CardAnimationType
 
 enum class BodyTextColorTheme { PARCHMENT, SILVER, MUTED_GOLD }
 enum class GlowColorTheme { GOLD, AZURE, PURPLE, NONE }
@@ -2384,7 +2690,9 @@ data class SufaraSettingsState(
     val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER,
     val glowColorTheme: GlowColorTheme = GlowColorTheme.AZURE,
     val isCyrillic: Boolean = false,
-    val showIpa: Boolean = true
+    val showIpa: Boolean = true,
+    val showSeparatedLetters: Boolean = true,
+    val cardAnimation: CardAnimationType = CardAnimationType.SLIDE
 )
 
 interface SufaraSettingsActions {
@@ -2397,6 +2705,8 @@ interface SufaraSettingsActions {
     fun updateGlowColor(theme: GlowColorTheme)
     fun updateScript(isCyrillic: Boolean)
     fun toggleIpa(enabled: Boolean)
+    fun toggleSeparatedLetters(enabled: Boolean)
+    fun updateCardAnimation(type: CardAnimationType) // НОВО
 }
 
 val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
@@ -2413,6 +2723,11 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
     var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f).coerceIn(0.6f, 2.0f)) }
     var isDebugMode by remember { mutableStateOf(prefs.getBoolean("debug_mode", true)) }
     var showIpa by remember { mutableStateOf(prefs.getBoolean("show_ipa", true)) }
+    var showSeparatedLetters by remember { mutableStateOf(prefs.getBoolean("show_separated", true)) }
+    
+    var cardAnimation by remember { 
+        mutableStateOf(CardAnimationType.valueOf(prefs.getString("card_anim", CardAnimationType.SLIDE.name) ?: CardAnimationType.SLIDE.name)) 
+    }
     
     var bodyTextColorTheme by remember { 
         mutableStateOf(BodyTextColorTheme.valueOf(prefs.getString("body_color_theme", BodyTextColorTheme.SILVER.name) ?: BodyTextColorTheme.SILVER.name)) 
@@ -2424,45 +2739,23 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
 
     var isCyrillic by remember { mutableStateOf(prefs.getBoolean("is_cyrillic", false)) }
 
-    val settingsState = SufaraSettingsState(cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode, bodyTextColorTheme, glowColorTheme, isCyrillic, showIpa)
+    val settingsState = SufaraSettingsState(
+        cyrillicFont, arabicFont, cyrillicSize, arabicSize, isDebugMode, 
+        bodyTextColorTheme, glowColorTheme, isCyrillic, showIpa, showSeparatedLetters, cardAnimation
+    )
 
     val actions = object : SufaraSettingsActions {
-        override fun updateCyrillicFont(name: String) {
-            cyrillicFont = name
-            prefs.edit().putString("cyr_font", name).apply()
-        }
-        override fun updateArabicFont(name: String) {
-            arabicFont = name
-            prefs.edit().putString("ar_font", name).apply()
-        }
-        override fun updateCyrillicSize(size: Float) {
-            cyrillicSize = size
-            prefs.edit().putFloat("cyr_size", size).apply()
-        }
-        override fun updateArabicSize(size: Float) {
-            arabicSize = size
-            prefs.edit().putFloat("ar_size", size).apply()
-        }
-        override fun toggleDebugMode(enabled: Boolean) {
-            isDebugMode = enabled
-            prefs.edit().putBoolean("debug_mode", enabled).apply()
-        }
-        override fun updateBodyTextColor(theme: BodyTextColorTheme) {
-            bodyTextColorTheme = theme
-            prefs.edit().putString("body_color_theme", theme.name).apply()
-        }
-        override fun updateGlowColor(theme: GlowColorTheme) {
-            glowColorTheme = theme
-            prefs.edit().putString("glow_color_theme", theme.name).apply()
-        }
-        override fun updateScript(cyrillic: Boolean) {
-            isCyrillic = cyrillic
-            prefs.edit().putBoolean("is_cyrillic", cyrillic).apply()
-        }
-        override fun toggleIpa(enabled: Boolean) {
-            showIpa = enabled
-            prefs.edit().putBoolean("show_ipa", enabled).apply()
-        }
+        override fun updateCyrillicFont(name: String) { cyrillicFont = name; prefs.edit().putString("cyr_font", name).apply() }
+        override fun updateArabicFont(name: String) { arabicFont = name; prefs.edit().putString("ar_font", name).apply() }
+        override fun updateCyrillicSize(size: Float) { cyrillicSize = size; prefs.edit().putFloat("cyr_size", size).apply() }
+        override fun updateArabicSize(size: Float) { arabicSize = size; prefs.edit().putFloat("ar_size", size).apply() }
+        override fun toggleDebugMode(enabled: Boolean) { isDebugMode = enabled; prefs.edit().putBoolean("debug_mode", enabled).apply() }
+        override fun updateBodyTextColor(theme: BodyTextColorTheme) { bodyTextColorTheme = theme; prefs.edit().putString("body_color_theme", theme.name).apply() }
+        override fun updateGlowColor(theme: GlowColorTheme) { glowColorTheme = theme; prefs.edit().putString("glow_color_theme", theme.name).apply() }
+        override fun updateScript(cyrillic: Boolean) { isCyrillic = cyrillic; prefs.edit().putBoolean("is_cyrillic", cyrillic).apply() }
+        override fun toggleIpa(enabled: Boolean) { showIpa = enabled; prefs.edit().putBoolean("show_ipa", enabled).apply() }
+        override fun toggleSeparatedLetters(enabled: Boolean) { showSeparatedLetters = enabled; prefs.edit().putBoolean("show_separated", enabled).apply() }
+        override fun updateCardAnimation(type: CardAnimationType) { cardAnimation = type; prefs.edit().putString("card_anim", type.name).apply() }
     }
 
     CompositionLocalProvider(
@@ -2638,19 +2931,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.room.Room
 import com.dino.sufara.core.designsystem.SufaraTheme
+// ИСПРАВКА: Нова путања до базе
+import com.dino.sufara.feature.lesson.data.local.AppDatabase
 import com.dino.sufara.feature.lesson.data.repository.LocalAssetLessonRepository
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraSettingsProvider
 import com.dino.sufara.navigation.SufaraNavGraph
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Иницијализација Splash екрана мора ићи пре super.onCreate
         installSplashScreen() 
-        
         super.onCreate(savedInstanceState)
         
-        val repository = LocalAssetLessonRepository(this)
+        val database = Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "sufara_database"
+        ).fallbackToDestructiveMigration().build()
+
+        val repository = LocalAssetLessonRepository(this, database.dao)
 
         setContent {
             SufaraTheme {
@@ -2724,24 +3024,6 @@ fun SufaraNavGraph(repository: LessonRepository) {
         }
     }
 }-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/java/com/dino/sufara/database/AppDatabase.kt
-================================================================================
--e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/java/com/dino/sufara/database/Entities.kt
-================================================================================
--e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/java/com/dino/sufara/database/Dao.kt
-================================================================================
--e 
 
 
 ================================================================================
@@ -2936,116 +3218,66 @@ fun GoldenWireButton(onClick: () -> Unit, text: String, font: androidx.compose.u
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/017 Нун/додатак.md
+PUTANJA: ./app/src/main/assets/lekcije/028 Фа/примери.md
 ================================================================================
-Нун је врло једноставан харф сам по себи, али због своје особине назализације (изговора кроз нос) даје прилику за улепшавање изговора. Зато је велики део теџвида повећен управо овом харфу и његовим спајањем са осталим харфовима.-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/017 Нун/лекција.md
-================================================================================
-Нун ن потпуно одговара слову Н. Звучан је и танак.
-
-نَ
-نِ
-نُ
-نًا
+فَ
+فِ
+فُ
+فًا
+فٍ
+فٌ
+فَوَ
+فَتَيَا
+فَرُوا
+لَفِي
+فَإِنَّ
+فَإِنْ
+فَوْفَذَ
+تِلَافُ
+فِلُونَ
+أَفَّاتٍ
+فِتْنَةٌ
+رَافًا
+أَفَلَا
+يَتَفَرَّ
+فَأَيْنَ
+فَلَابُ
+فِرَارًا
+تَفْيِيرٍ
+وَفَرَ
+وَتَوَفَّنَا
 
 -e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/010 Ра/примери.md
+PUTANJA: ./app/src/main/assets/lekcije/028 Фа/лекција.md
 ================================================================================
-رَ
-رِ
-رُ
-رًا
-رٍ
-رٌ
-أَرْ
-أَرَ
-رَأَرْ
-رَأُرَ
-أُرِدَ
-أَرَدْ
-رَإِ
-ذَرِ
-ذِرْ
-ذُرٍ
-أَرَأِدَ
-دَرْدَرَ
-أَرًا
-دَرَاِ
-ذُرْدٍ
-ذِرَذُ
-ذُرِدَ
-دِرْ
-إِدُرْ
-ذَدْرٍ
-دُذْرَذُ
-أَرَذَدُ-e 
+Харф фа ف потпуно одговара нашем Ф. Танак је и безвучан.
+
+فَ
+فِ
+فُ-e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/010 Ра/лекција.md
+PUTANJA: ./app/src/main/assets/lekcije/028 Фа/квиз.md
 ================================================================================
-Ра ر изговара се као наше Р. Овај харф је углавном куран, осим изузетака које ћемо споменути. Зато када на њему дође фетха не чита се Е као код других харфова него крупно А. Слично, ако на њему дође тенвин са фетхом онда се чита АН уместо ЕН.
-
-رَ
-
-رًا
-
-Овај харф је, дакле, у основи крупан. Чита се танко једино када му дође кесра - И.
-
-رَ
-رُ
-رِ
--e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/010 Ра/квиз.md
-================================================================================
-1. Харф ر је:
-	1. увек танак
-	2. увек крупан
-	3. углавном крупан, а некад танак
-2. Харф ر изговара се као:
-	1. Р
-	2. Х
-	3. П
-3. Харф ر изговара се танко једино када му дође:
-	1. фетха
-	2. дамма
-	3. кесра
-4. Код крупних харфова фетха се изговара као:
-	1. А
-	2. Е-e 
+1. Харф ف се изговара као
+	1. Ф
+	2. В
+	3. К
+2. Харф ف је:
+	1. безвучан
+	2. звучан
+3. Харф ف је:
+	1. танак
+	2. крупан
+	3. понекад танак понекад крупан-e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/016 Тешдид/додатак.md
-================================================================================
-Тешдид је заправо скраћеница за један харф поновљен два пута, тако да је на првом сукун. Нпр
-أَذَّ
-أَذْذَ
-ова два примера су исти.-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/016 Тешдид/лекција.md
-================================================================================
-Тешдид ــّـ је ознака за појачавање сугласника. Тада се мало задржавамо на сугласнику и изговарамо га наглашено. Изгледа као енглеско слово w.
-
-إِتِّ
-
-أَدَّ
--e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/006 Тенвин са даммом/примери.md
+PUTANJA: ./app/src/main/assets/lekcije/007 Тенвин са даммом/примери.md
 ================================================================================
 أٌ
 دٌ
@@ -3060,16 +3292,12 @@ PUTANJA: ./app/src/main/assets/lekcije/006 Тенвин са даммом/при
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/006 Тенвин са даммом/лекција.md
+PUTANJA: ./app/src/main/assets/lekcije/007 Тенвин са даммом/лекција.md
 ================================================================================
-Тенвин су знаци за појачавање самогласника гласом Н - било да је то дамма, фетха или кесра. Пишу се само на **крају** речи. Изговарају се додавањем гласа Н на одговарајући самогласник.
-
-Дакле, за сваки самогласник постоји одговарајући тенвин. Почнимо од тенвина за дамму - У. Пише се слично као дамма, и изговара се као УН уместо У.
+Почнимо од тенвина за дамму - У. Пише се слично као дамма, и изговара се као УН уместо У.
 
 أٌ
-
 دٌ
-
 ذٌ
 
 Ево компликованијег примера који није намењен за вежбу, већ само као пример тенвина у реченици:
@@ -3080,19 +3308,49 @@ PUTANJA: ./app/src/main/assets/lekcije/006 Тенвин са даммом/лек
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/006 Тенвин са даммом/квиз.md
+PUTANJA: ./app/src/main/assets/lekcije/024 Дуги самогласник А/примери.md
 ================================================================================
-1. Тенвин су знаци за појачавање:
-	1. самогласника
-	2. сугласника
-2. Тенвин се изговара тако што се његовом самогласнику дода глас:
-	1. Н
-	2. М
-	3. Б
-3. Тенвин се пише
-	1. само на крају речи
-	2. било где
-	3. само на почетку речи-e 
+دَا
+بَا
+تَا
+ثَا
+لَا
+إِذَا تَابَ
+إِنَاثًا
+وَأَوْلَادُ
+ثَلَاثَةِ
+ثَوَابَ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/024 Дуги самогласник А/лекција.md
+================================================================================
+Дуги самогласник А твори се тако што се након фетхе ــَـ дода елиф ا.
+
+بَا
+تَا
+دَا
+
+Овај самогласник се увеч чита као А, али његова крупноћа зависи од харфа пре њега. Код крупних харфова чита се крупније:
+
+رَا-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/024 Дуги самогласник А/квиз.md
+================================================================================
+1. Дуги самогласник А твори се од:
+	1. фетхе ــَـ
+	2. кесре ــِـ
+	3. дамме ــُـ
+2. Дуги самогласник А твори се тако што се на фетху дода:
+	1. елиф ا
+	2. ја ي
+	3. вав و
+3. Дуги самогласник А изговара се:
+	1. танко ако је харф пре танак, и крупно ако је харф пре крупно
+	2. увек танко
+	3. увек крупно-e 
 
 
 ================================================================================
@@ -3132,9 +3390,7 @@ PUTANJA: ./app/src/main/assets/lekcije/005 Зал/лекција.md
 Зал ذ не постоји у српском језику. Највише личи слову З, а изговара се тако што се врх језика стави на предње зубе - секутиће и испустимо звук. Танак је и звучан.
 
 ذَ
-
 ذِ
-
 ذُ
 
 Пише се исто као د осим што има тачку изнад.-e 
@@ -3159,65 +3415,94 @@ PUTANJA: ./app/src/main/assets/lekcije/005 Зал/квиз.md
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/012 Вав/додатак.md
+PUTANJA: ./app/src/main/assets/lekcije/011 Ра/примери.md
 ================================================================================
-Харф و назива се 'харф љубави' јер његов изговор изгледа као пољубац. Симбол за дамму ــُـ, личи на мало вав. Ово није случајност. Некада Арапи нису писали самогласније него су их подразумевали из контекста. Када је дошла потреба за увођењем симбола за У, један граматичар по имену ел-Халил б. Ахмед одлучио је да искористи و због њихове сличности у изговору.-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/012 Вав/примери.md
-================================================================================
-وَ
-وِ
-وُ
-وًا
-وٍ
-وٌ
-وَأَوْدٍ
-وَأَوْرَ
-زَزَوًا
-وِرْدٌ
-أَوْوَزَ
-أَرَدْوًا
-وَإِذْرَ
-أَوْدٌ
-وَوَرَاَ
-وَرَاَوْ
-رَأَوُإِ
-وُدَإِدُ
-وَإِذْأَ
-وَرَاُوَ
-وَأُرِدَوٍ
-وَأُدْ
-أَوْرَ
-وَإِذْوٍ
-وَدَرَ-e 
+رَ
+رِ
+رُ
+رًا
+رٍ
+رٌ
+أَرْ
+أَرَ
+رَأَرْ
+رَأُرَ
+أُرِدَ
+أَرَدْ
+رَإِ
+ذَرِ
+ذِرْ
+ذُرٍ
+أَرَأِدَ
+دَرْدَرَ
+أَرًا
+دَرَاِ
+ذُرْدٍ
+ذِرَذُ
+ذُرِدَ
+دِرْ
+إِدُرْ
+ذَدْرٍ
+دُذْرَذُ
+أَرَذَدُ-e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/012 Вав/лекција.md
+PUTANJA: ./app/src/main/assets/lekcije/011 Ра/лекција.md
 ================================================================================
-Вав و не постоји у српском језику, а највише личи гласу В. Изговара се попут енглеског даблју - w, тј. лаганим заокруживањем и избацивањем усана, као да изговарамо У. Харф و је танак и звучан харф. Пише се као зарез.
+Ра ر изговара се као наше Р. Овај харф је углавном куран, осим изузетака које ћемо споменути. Зато када на њему дође фетха не чита се Е као код других харфова него крупно А. Слично, ако на њему дође тенвин са фетхом онда се чита АН уместо ЕН.
 
-وَ
-وِ
-وُ
-أَوْ
-وًا
+رَ
+رًا
 
+Овај харф је, дакле, у основи крупан. Чита се танко једино када му дође кесра - И.
+
+رَ
+رُ
+رِ
 -e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/012 Вав/квиз.md
+PUTANJA: ./app/src/main/assets/lekcije/011 Ра/квиз.md
 ================================================================================
-1. Харф و се изговара:
-	1. слично као В
-	2. слично као Ј
-	3. слично као Џ
-2. Харф و је:
-	1. танак
-	2. крупан-e 
+1. Харф ر је:
+	1. увек танак
+	2. увек крупан
+	3. углавном крупан, а некад танак
+2. Харф ر изговара се као:
+	1. Р
+	2. Х
+	3. П
+3. Харф ر изговара се танко једино када му дође:
+	1. фетха
+	2. дамма
+	3. кесра
+4. Код крупних харфова фетха се изговара као:
+	1. А
+	2. Е-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/006 Тенвин/лекција.md
+================================================================================
+Тенвин су знаци за појачавање самогласника гласом Н - било да је то дамма, фетха или кесра. Пишу се само на **крају** речи. Изговарају се додавањем гласа Н на одговарајући самогласник. Дакле, за сваки самогласник постоји одговарајући тенвин. -e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/006 Тенвин/квиз.md
+================================================================================
+1. Тенвин су знаци за појачавање:
+	1. самогласника
+	2. сугласника
+2. Тенвин се изговара тако што се његовом самогласнику дода глас:
+	1. Н
+	2. М
+	3. Б
+3. Тенвин се пише
+	1. само на крају речи
+	2. било где
+	3. само на почетку речи-e 
 
 
 ================================================================================
@@ -3253,11 +3538,8 @@ PUTANJA: ./app/src/main/assets/lekcije/004 Дал/лекција.md
 Дал د је харф који потпуно одговара нашем Д. Танак је и звучан харф.
 
 دُ
-
 دَ
-
-دِ
--e 
+دِ-e 
 
 
 ================================================================================
@@ -3351,71 +3633,44 @@ PUTANJA: ./app/src/main/assets/lekcije/002 Самогласници/квиз.md
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/013 Ба/додатак.md
+PUTANJA: ./app/src/main/assets/lekcije/017 Са/примери.md
 ================================================================================
-Када се ب изговори са сукуном, наглашава се да би се разликовало од гласа П.-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/013 Ба/примери.md
-================================================================================
--e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/013 Ба/лекција.md
-================================================================================
-Ба ب потпуно одговара нашем гласу Б. Изгледа као посуда са тачком испод. Ово је први харф ког обрађујемо да се спаја са оба стране, јер су се претходни харфови спајали само са десне. Ово ће бити случај и са осталим харфовима које будемо обрађивали.
-
-بَ
-
-بِ
-
-بُ
-
-أَبْ
-
--e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/013 Ба/квиз.md
-================================================================================
-1. Харф ب изговара се као:
-	1. Б
-	2. В
-	3. М
-2. Харф ب спаја се:
-	1. само са леве
-	2. само са десне
-	3. са обе стране-e 
+ثَ
+ثِ
+ثُ
+ثٍ
+ثٌ
+ثًا
+ثُرْ
+وَبَثَ
+دُبْثِ
+أَثْتَ
+بَثْرِبَ
+ثَوَرْ
+ثَدَإِ
+تَثَتْ
+وَأَتَثٍ
+تَتُثًا
+بُرْثَ
+إِبْتَثَرَتْ
+وَدَثَةِ
+أَرَأَثْتَ
+تَرَوْثٌ
+ثَبْثَةِ
+ثَوَإِبًا
+وَرِثَ
+وَأُتِثَ-e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/007 Тенвин са кесром/примери.md
+PUTANJA: ./app/src/main/assets/lekcije/017 Са/лекција.md
 ================================================================================
-إٍ
-دٍ
-ذٍ
-أَدٍ
-أَدَذٍ
-ذَدٍ
-أُذٍ
-دِذٍ
-ذِأَدٍ
-ذُدٍ-e 
+Са ث не постоји у српском језику. Изговара се тако што се језик стави на предње зубе и изговори С. Танак је и безвучан харф. Другим речима, изговара се исто као ذ осим што нема гласа током изговора.
 
+ثَ
+ثِ
+ثُ
 
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/007 Тенвин са кесром/лекција.md
-================================================================================
-Тенвин са кесром - И, чита се као ИН. Пише се као две кесре, тј. две косе црте испод харфа. Као и остали тенвини, пише се искључиво на крајевима речи.
-
-اٍ
-
-دٍ
-
-ذٍ
 -e 
 
 
@@ -3425,7 +3680,6 @@ PUTANJA: ./app/src/main/assets/lekcije/cinjenice.md
 Први граматичар арапског језика је Али б. Еби Талиб
 У арапском језику постоји преко 300 синонима за лава
 У арапском језику постоји преко 1000 синонима за камилу
-У арапском језику постоји преко 100 синонима за сабљу
 Глас ض постоји само у арапском језику, због чега се арапски често назива 'језиком слова Дад'
 Реч за срце је قَلْب (калб), што долази од корена 'окретати се', јер је људско срце превртљиво
 Име језика 'арапски' у значењу је повезано са речитошћу и јасним изражавањем
@@ -3443,7 +3697,7 @@ PUTANJA: ./app/src/main/assets/lekcije/cinjenice.md
 У арапском језику постоје три врсте речи: именице, глаголи и честице
 У арапском језику глаголи пролазе кроз падеже
 Пустињски бедуини су вековима сматрани чуварима чистог језика, јер су живели изоловано од страних утицаја
--e 
+Већину помоћних симбола арапског рукописа попут ознака за самогласнике, сукун, хемзе итд. осмислио је ел-Халил ибн Ахмед-e 
 
 
 ================================================================================
@@ -3505,7 +3759,59 @@ PUTANJA: ./app/src/main/assets/lekcije/003 Хемзе/квиз.md
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/011 Зај/примери.md
+PUTANJA: ./app/src/main/assets/lekcije/010 Сукун/додатак.md
+================================================================================
+Сукун језички значи 'мировање', 'спокој' или 'стајање'. Овај израз је употребљен зато што стајемо на харф не додајући му самогласник.
+
+Харф د одскаче када на њега дође сукун. Ово је да би се разликовало од гласа т, који има исто исходиште.-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/010 Сукун/примери.md
+================================================================================
+إِدْأَ
+إِذْأَ
+إِذْ
+دِدْأَ
+إِذْدَ
+دَذْأٍ
+أَذْدٌ
+دَدِأَذْ
+ذَدْ
+إِدْذُ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/010 Сукун/лекција.md
+================================================================================
+Сукун је ознака да харф на коме се налази нема самогласника, већ се изговара сам. Изгледа као кружић изнад харфа. Тако нпр. دِدْ изговарамо ДИД. Приметимо како на други харф не додајемо ниједан од три самогласника, већ само стајемо на њему.
+
+دِدْ
+إِذْ
+أَدْ
+
+Сукун никада не може доћи на почетку речи, али може доћи у средини или на крају.-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/010 Сукун/квиз.md
+================================================================================
+1. Сукун је ознака која нам каже да
+	1. харф на којем стоји нема самогласника
+	2. харф на којем стоји изговоримо гласније
+	3. харф на којем стоји игноришемо
+2. Сукун изгледа као
+	1. кружић
+	2. тетраедар
+	3. троугао
+3. Сукун НЕ може доћи:
+	1. на почетку
+	2. на крају
+	3. у средини-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/012 Зај/примери.md
 ================================================================================
 زَ
 زِ
@@ -3538,26 +3844,179 @@ PUTANJA: ./app/src/main/assets/lekcije/011 Зај/примери.md
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/011 Зај/лекција.md
+PUTANJA: ./app/src/main/assets/lekcije/012 Зај/лекција.md
 ================================================================================
 Зај ز потпуно одговара нашем З. Пише се као ر осим што се додаје тачка. Танак је харф.
 
 زَ
-
 زِ
-
 زُ
 -e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/додатак.md
+PUTANJA: ./app/src/main/assets/lekcije/015 Та/примери.md
+================================================================================
+تَ
+تِ
+تُ
+تًا
+تٍ
+تٌ
+تَرَتْ
+تَبَ
+بَتِ
+تَوَ
+أَوْرَأَتَ
+تَذْرٍ
+تُرْزَ
+أَبَتْ
+تُرَأُوِدُ
+أَوْ تَتْرُ
+تَرَوْ
+ذَأُتُ
+أَبَتِ
+وَأَتَتْ
+تَوَإِبًا
+تَتُبًا
+رُدَتْ
+بُبُوَتٍ
+وَأَتْرُ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/015 Та/лекција.md
+================================================================================
+Та ت изговара се као наш глас Т. Танак је и безвучан. Пише се исто као ب осим што има две тачке горе.
+
+تَ
+تِ
+تُ
+-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/018 Тешдид/додатак.md
+================================================================================
+Тешдид је заправо скраћеница за један харф поновљен два пута, тако да је на првом сукун. Нпр
+أَذَّ
+أَذْذَ
+ова два примера су исти.
+Тешдид језички значи 'јачина'.-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/018 Тешдид/примери.md
+================================================================================
+تَبَّ
+تَدَّ
+بَتَّ
+أُزَّ
+أُرَّ
+رُدَّتْ
+وَبَثَّ
+أَذَّ
+إِتٍّ
+رَبِّ
+ذُرِّ
+أَدَّبَ
+وَزَوَّ
+وَإِدَّ
+وَتَبَّ
+أَبَرِّ
+ذَرَّةٍ
+تَبَّتْ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/018 Тешдид/лекција.md
+================================================================================
+Тешдид ــّـ је ознака за појачавање сугласника. Тада се мало задржавамо на сугласнику и изговарамо га наглашено. Изгледа као енглеско слово w.
+
+إِتِّ
+أَدَّ
+-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/021 Лам/примери.md
+================================================================================
+لَ
+لِ
+لُ
+لِيَ
+لِدَ
+لَنْ
+بَلِ
+وَلَوْ
+دَلْوَ
+لَوْنَ
+وَلَدًا
+يَلِ
+لَذَّةٍ
+أُنْزِلَ
+وَيْلٌ
+بَلَدًا
+يُنَزِّلُ
+أُنْزِلَتْ
+وَلِيٍّ
+أَوَّلَ
+يَتَوَلَّوْنَ
+ثَلْثَةِ
+أَنْ تُنَزَّلَ
+إِلَيَّ
+وَلِيًّا
+وَذِلَّةٌ
+لِنْتَ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/021 Лам/лекција.md
+================================================================================
+-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/симболи.md
+================================================================================
+.
+.
+أ
+د
+ذ
+.
+ــٌـ
+ــٍـ
+ــًـ
+ــْـ
+ر
+ز
+و
+ب
+ت
+ة
+ث
+ــّـ
+ن
+ي
+ل
+لا
+.
+ـَ ا
+ـِ ي
+ـُ و
+.
+ف-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/009 Тенвин са фетхом/додатак.md
 ================================================================================
 Елиф које се пише код тенвина нам за сада не значи пуно, али ће касније у теџвиду имати важну улогу.-e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/примери.md
+PUTANJA: ./app/src/main/assets/lekcije/009 Тенвин са фетхом/примери.md
 ================================================================================
 أً
 دًا
@@ -3572,7 +4031,7 @@ PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/при
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/лекција.md
+PUTANJA: ./app/src/main/assets/lekcije/009 Тенвин са фетхом/лекција.md
 ================================================================================
 Тенвин са фетхом - Е, чита се као ЕН. Пише се као две фетхе, тј. две косе црте изнад харфа.
 
@@ -3587,16 +4046,14 @@ PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/лек
 На пример,
 
 أً
-
 دًا
-
 ذًا
 
 -e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/квиз.md
+PUTANJA: ./app/src/main/assets/lekcije/009 Тенвин са фетхом/квиз.md
 ================================================================================
 1. Оно што издваја тенвин са фетхом је што се најчешће додаје:
 	1. елиф
@@ -3609,53 +4066,464 @@ PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са фетхом/кви
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/симболи.md
+PUTANJA: ./app/src/main/assets/lekcije/016 Та марбута/додатак.md
 ================================================================================
-.
-.
-أ
-د
-ذ
-ــٌـ
-ــٍـ
-ــًـ
-ــْـ
-ر
-ز
-و-e 
+Овај облик харфа та ة назива се 'та марбута', а у граматици је главни знак женског рода. Пише се као харф ه ког ћемо касније радили, осим што дописујемо две тачке. Ово није случајно, већ подсетник за правило да се ة на при стајању чита као ه.-e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/015 Са/лекција.md
+PUTANJA: ./app/src/main/assets/lekcije/016 Та марбута/примери.md
 ================================================================================
-Са ث не постоји у српском језику. Изговара се тако што се језик стави на предње зубе и изговори С. Танак је и безвучан харф. Другим речима, изговара се исто као ذ осим што нема гласа током изговора.
+ةَ
+ةِ
+ةُ
+ـةُ
+ـةٌ
+ـةً
+تَةَ
+إِبْرَةِ
+وَرْدَةٌ
+دَوْرَةٍ
+ذُرَةً-e 
 
-ثَ
 
-ثِ
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/016 Та марбута/лекција.md
+================================================================================
+Харф та ت некада се пише као круг са две тачке, ة. Овај облик чита се исто, а јавља се само на крају или самостално, а никада на почетку или средину.
 
-ثُ
+ةَ
+ةُ
+ةِ-e 
 
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/026 Дуги самогласник У/примери.md
+================================================================================
+نُورًا
+دُودٌ
+دُونِ
+بُيُوتٍ
+ذُنُوبٌ
+يَدُورُ
+يَزُورُ
+يَتُوبَ
+نُزُولٌ
+بَنُونَ
+يُرِيدُونَ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/026 Дуги самогласник У/лекција.md
+================================================================================
+Дуги самогласник У твори се тако што се након дамме ــُـ дода вав و.
+
+دُو
+بُو
+تُو-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/026 Дуги самогласник У/квиз.md
+================================================================================
+1. Дуги самогласник У твори се од:
+	1. дамме ــُـ
+	2. кесре ــِـ
+	3. фетхе ــَـ
+2. Дуги самогласник У твори се тако што се на дамму дода:
+	1. вав و
+	2. ја ي
+	3. елиф ا-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/019 Нун/додатак.md
+================================================================================
+Нун је врло једноставан харф сам по себи, али због своје особине назализације (изговора кроз нос) даје прилику за улепшавање изговора. Зато је велики део теџвида повећен управо овом харфу и његовим спајањем са осталим харфовима.-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/019 Нун/примери.md
+================================================================================
+نَ
+نِ
+نُ
+أَنْ
+إِنْ
+نٌ
+دُنٍ
+دَدَنَ
+إِنَّ
+وَإِنْ
+نَزْدَ
+إِنْ أَرَدْنَ
+أَذِنَ
+بَأَنَّ
+وَأَنْتَ
+وَإِنْ تَدْ
+نَبَّأُ
+أَذَّنَ
+نُوِرًا
+أَذِنْتَ
+أُنْزِرًا
+تَرَوْنَ
+بَنَوْ
+أَوْدَثْنٍ
+نُثَبِّتُ
+وَإِذْ تَأَذَّنَ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/019 Нун/лекција.md
+================================================================================
+Нун ن потпуно одговара слову Н. Звучан је и танак.
+
+نَ
+نِ
+نُ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/022 Лам и елиф/примери.md
+================================================================================
+لًا
+لَأَ
+لَإِ
+لِأُ
+لَيْلًا
+نُزُلًا
+لَأَنْتَ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/022 Лам и елиф/лекција.md
+================================================================================
+Лам ل и елиф ا се често јављају заједно. Стога постоји посебан симбол за комбинацију ова два харфва. Када прво дође лам а затим елиф то записујемо као لا. Пошто се елиф не спаја са харфом који следи, онда ни ову комбинацију не спајамо са следеђим харфом. Као и код елифа, када хемзе на елифу أ дође након лама, онда то записујемо као لأ. Исто важи и за облик када је хемзе испод елифа због кесре إ, тада пишемо لإ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/013 Вав/додатак.md
+================================================================================
+Харф و назива се 'харф љубави' јер његов изговор изгледа као пољубац. Симбол за дамму ــُـ, личи на мало вав. Ово није случајност. Некада Арапи нису писали самогласније него су их подразумевали из контекста. Када је дошла потреба за увођењем симбола за У, један граматичар по имену ел-Халил б. Ахмед одлучио је да искористи و због њихове сличности у изговору.-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/013 Вав/примери.md
+================================================================================
+وَ
+وِ
+وُ
+وًا
+وٍ
+وٌ
+وَأَوْدٍ
+وَأَوْرَ
+زَزَوًا
+وِرْدٌ
+أَوْوَزَ
+أَرَدْوًا
+وَإِذْرَ
+أَوْدٌ
+وَوَرَاَ
+وَرَاَوْ
+رَأَوُإِ
+وُدَإِدُ
+وَإِذْأَ
+وَرَاُوَ
+وَأُرِدَوٍ
+وَأُدْ
+أَوْرَ
+وَإِذْوٍ
+وَدَرَ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/013 Вав/лекција.md
+================================================================================
+Вав و не постоји у српском језику, а највише личи гласу В. Изговара се попут енглеског даблју - w, тј. лаганим заокруживањем и избацивањем усана, као да изговарамо У. Харф و је танак и звучан харф. Пише се као зарез.
+
+وَ
+وِ
+وُ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/013 Вав/квиз.md
+================================================================================
+1. Харф و се изговара:
+	1. слично као В
+	2. слично као Ј
+	3. слично као Џ
+2. Харф و је:
+	1. танак
+	2. крупан-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/020 Ја/примери.md
+================================================================================
+يَ
+يِ
+يُ
+أَيْ
+بَيْنَ
+وَإِنْ يَرَوْ
+يُبْدِ
+يَثْرِبَ
+يَدَيٌّ
+بَنِيَّ
+رَأَيْتَ
+يُنَزِّرَ
+وَيَذَرُ
+ذُرِّيَّةً
+وَيُثَبِّتُ
+رَيْبَةً
+دُرِّيٌّ
+يُنَزَّتًا
+وَإِذْ زَيَّنَ
+يُرَدُّ
+تَبَيَّنَ
+يَتَبَوَّأُ
+بَيِّنًا
+وَأَيَّدَ
+وَيُنَزِّ
+يَتَوَرٍ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/020 Ја/лекција.md
+================================================================================
 -e 
 
 
 ================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/014 Та/лекција.md
+PUTANJA: ./app/src/main/assets/lekcije/014 Ба/додатак.md
 ================================================================================
-Та ت изговара се као наш глас Т. Танак је и безвучан. Пише се исто као ب осим што има две тачке горе.
+Када се ب изговори са сукуном, наглашава се да би се разликовало од гласа П.-e 
 
-تَ
 
-تِ
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/014 Ба/примери.md
+================================================================================
+بَ
+بِ
+بُ
+بًا
+أَبٌ
+إِبٍ
+أَبَدًا
+بَرَدٍ
+بَإِبٌ
+دَأَبًا
+دُبُرٍ
+بَأَ
+ذَأَبَ
+ذَبَرَ
+بُرْبًا
+بَدْرٍ
+أَبَوَ
+بَدَأَ
+دَأَوُبُ
+بَبَذَ
+أَرْبَأَبٌ
+بِدَذٍ
+بِأَدٍ
+بَوَ
+وَبِذَ
+أَبْوَأُبٍ
+ذِبٍ-e 
 
-تُ
 
-Постоји још један облик овог харфа, а то је када се пише као круг. Овај облик јавља се само на крају речи.
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/014 Ба/лекција.md
+================================================================================
+Ба ب потпуно одговара нашем гласу Б. Изгледа као посуда са тачком испод. Ово је први харф ког обрађујемо да се спаја са оба стране, јер су се претходни харфови спајали само са десне. Ово ће бити случај и са осталим харфовима које будемо обрађивали.
 
-ةُ
+بَ
+بِ
+بُ-e 
 
-ـةَ
 
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/014 Ба/квиз.md
+================================================================================
+1. Харф ب изговара се као:
+	1. Б
+	2. В
+	3. М
+2. Харф ب спаја се:
+	1. само са леве
+	2. само са десне
+	3. са обе стране-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/027 Скривени елиф/додатак.md
+================================================================================
+Неке речи које се данас изговарају са елифом древни арапи су изговарали са ја. Да би сачували историјски развој, преписивачи су наставили да пишу харф ى.
+Симбол за дужину آ осмислио је ел-Халил ибн Ахмед, као и већину помоћних симбола за странце. Овај симбол је добио тако сто је написао مدّ изнад елифа, што значи 'дужина', а затим уклонио ивице да би се лакше читало.-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/027 Скривени елиф/примери.md
+================================================================================
+هُدَىٰ
+صَلَوٰةٌ
+رَحْمَٰنُ
+آدَمُ
+عِيسَىٰ
+ذَٰلِكَ
+زَكَوٰةٌ
+قُرْآنٌ
+مُوسَىٰ
+إِلَٰهٌ
+حَيَوٰةٌ
+آيَاتٌ
+بَلَىٰ
+ثَلَٰثَةِ
+مَآبٌ
+تَرَىٰ
+آتَيْنَا
+نَدَىٰ
+هَٰذَا
+غَدَوٰةِ
+آلُ
+أُنْثَىٰ
+لَٰكِنْ
+آذَانٌ
+تَوَلَّىٰ
+مَلَٰئِكَةُ
+آنِيَةٍ
+أَرَىٰ
+سَمَٰوَٰتِ
+آثَرَ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/027 Скривени елиф/лекција.md
+================================================================================
+Дуги самогласник А је најзанимљивији од три самогласника. Иако смо обрадили његов основни облик, постоји још неколико сличних начина да се запише. Ово је због богате историје развоја арапског писма.
+
+Први алтернативни облик је **кратки елиф** ى, тј. елиф максура. Овај елиф изгледа као ја без тачкица, а некад се додаје и мало елиф као подсетник. Јавља се искључиво на крају речи. Нема разлике у изговору између обичног и кратког елифа.
+
+ههُدَىٰ
+عِيسَىٰ
+مُوسَىٰ
+
+Следећи облик је да се елиф појави у облику вав و. Ово се јавља у прастарим речима и врло је ретко. Као подсетник се пише мало елиф изнад вав.
+
+صَلَوٰةٌ
+زَكَوٰةٌ
+حَيَوٰةٌ
+
+Код писања властитих имена и честих речи пракса је да се не напише елиф као засебан харф, већ да се накнадно дода као знак. Ово је само конвенција код писања, а чита се исто као и обично елиф.
+
+ررَحْمَٰنُ
+ذَٰلِكَ
+إِلَٰهٌ
+
+Коначно, постоји посебна ознака када дуги самогласник А дође на хемзе, а то је آ
+
+آدَمُ
+قُرْآنٌ
+آيَاتٌ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/023 Дуги самогласници/лекција.md
+================================================================================
+Споменули смо да се у арапском језику кратки самогласници пишу као ознаке које се дописују харфу.
+
+بَ
+بِ
+بُ
+
+Као и у српском језику, у арапском језику имамо дуге самогласнике који се читају отприлике два пута дуже од кратких. Дуги самогласници творе се тако што након кратког самогласника дође њему одговарајући харф са сукуном. Сваки дуги самогласник ћемо детаљније обрадити, али укратко: фетхи ــَـ одговара елиф ا, кесри ــِـ одговара ја ي, а дамми ــُـ одговара вав و. Иако је на том харфу сукун, ми га не пишемо да би подсетили читаоца да је реч о дугом самогласнику. Ево практичних примера:
+
+بَابٌ
+دِينٌ
+نُورٌ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/023 Дуги самогласници/квиз.md
+================================================================================
+1. Колико има дугих самогласника у арапском језику?
+	1. исто као и кратких
+	2. 5
+	3. 2
+2. Колико се дуго изговарају дуги самогласници?
+	1. дупло дуже од кратких
+	2. зависи од самогласника
+	3. исто као и кратки
+3. Дуги самогласник се гради тако што након кратког дође њему одговарајући харф са:
+	1. сукуном
+	2. тешдидом
+	3. истим самогласником-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/025 Дуги самогласник И/примери.md
+================================================================================
+لِي
+رَبِّي
+زِيدَ
+نَذِيرٌ
+دَلِيلٌ
+بَنَاتِي
+دِينًا
+بَنِي
+وَأَنِّي
+يُرِيدٌ
+-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/025 Дуги самогласник И/лекција.md
+================================================================================
+Дуги самогласник И твори се тако што се након кесре ــِـ дода ја ي.
+
+دِي
+بِي
+تِي-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/025 Дуги самогласник И/квиз.md
+================================================================================
+1. Дуги самогласник И твори се од:
+	1. кесре ــِـ
+	2. фетхе ــَـ
+	3. дамме ــُـ
+2. Дуги самогласник И твори се тако што се на кесру дода:
+	1. ја ي
+	2. елиф ا
+	3. вав و-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са кесром/примери.md
+================================================================================
+إٍ
+دٍ
+ذٍ
+أَدٍ
+أَدَذٍ
+ذَدٍ
+أُذٍ
+دِذٍ
+ذِأَدٍ
+ذُدٍ-e 
+
+
+================================================================================
+PUTANJA: ./app/src/main/assets/lekcije/008 Тенвин са кесром/лекција.md
+================================================================================
+Тенвин са кесром - И, чита се као ИН. Пише се као две кесре, тј. две косе црте испод харфа. Као и остали тенвини, пише се искључиво на крајевима речи.
+
+اٍ
+دٍ
+ذٍ
 -e 
 
 
@@ -3696,59 +4564,5 @@ PUTANJA: ./app/src/main/assets/lekcije/001 Основа/квиз.md
 	2. испред харфа
 	3. иза харфа
 -e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/009 Сукун/додатак.md
-================================================================================
-Сукун језички значи 'мировање', 'спокој' или 'стајање'. Овај израз је употребљен зато што стајемо на харф не додајући му самогласник.
-
-Харф د одскаче када на њега дође сукун. Ово је да би се разликовало од гласа т, који има исто исходиште.-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/009 Сукун/примери.md
-================================================================================
-إِدْأَ
-إِذْأَ
-إِذْ
-دِدْأَ
-إِذْدَ
-دَذْأٍ
-أَذْدٌ
-دَدِأَذْ
-ذَدْ
-إِدْذُ-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/009 Сукун/лекција.md
-================================================================================
-Сукун је ознака да харф на коме се налази нема самогласника, већ се изговара сам. Изгледа као кружић изнад харфа. Тако нпр. دِدْ изговарамо ДИД. Приметимо како на други харф не додајемо ниједан од три самогласника, већ само стајемо на њему.
-
-دِدْ
-
-إِذْ
-
-أَدْ
-
-Сукун никада не може доћи на почетку речи, али може доћи у средини или на крају.-e 
-
-
-================================================================================
-PUTANJA: ./app/src/main/assets/lekcije/009 Сукун/квиз.md
-================================================================================
-1. Сукун је ознака која нам каже да
-	1. харф на којем стоји нема самогласника
-	2. харф на којем стоји изговоримо гласније
-	3. харф на којем стоји игноришемо
-2. Сукун изгледа као
-	1. кружић
-	2. тетраедар
-	3. троугао
-3. Сукун НЕ може доћи:
-	1. на почетку
-	2. на крају
-	3. у средини-e 
 
 
