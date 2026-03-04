@@ -156,36 +156,42 @@ fun SufaraText(
                 }
                 
                 is TextBlock.ExampleGroup -> {
-                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                        FlowRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 24.dp), 
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalArrangement = Arrangement.spacedBy(32.dp)
-                        ) {
-                            block.examples.forEach { exampleText ->
-                                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                                    key(exampleText) {
-                                        val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
-                                        var scaleMultiplier by remember { mutableFloatStateOf(1f) }
-                                        val currentExampleSize = finalArabicSize * 2.2f * scaleMultiplier
-                                        
-                                        Box(contentAlignment = Alignment.Center) {
-                                            exampleRenderer.Render(
-                                                text = exampleText,
-                                                action = action,
-                                                globalType = globalType,
-                                                arabicFont = exampleArabicFont,
-                                                fontSize = currentExampleSize,
-                                                textGlow = textGlow,
-                                                redGlow = redGlow,
-                                                onTextLayout = { textLayoutResult ->
-                                                    if (textLayoutResult.lineCount > 1 && scaleMultiplier > 0.4f) {
-                                                        scaleMultiplier *= 0.9f
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 16.dp)) {
+                        val maxWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { maxWidth.toPx() }
+                        var scaleMultiplier by remember(block.examples) { mutableFloatStateOf(1f) }
+                        
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                // ИСПРАВКА: SpaceEvenly прелепо распоређује елементе и гарантује празан простор између њих
+                                horizontalArrangement = Arrangement.SpaceEvenly, 
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                block.examples.forEach { exampleText ->
+                                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                        key(exampleText) {
+                                            val action = HarfHighlighter.analyze(exampleText, lessonId, symbol)
+                                            // ИСПРАВКА: Фонт је сада знатно мањи (1.2f уместо 2.2f)
+                                            val currentExampleSize = finalArabicSize * 1.2f * scaleMultiplier 
+                                            
+                                            // Додат падинг да се визуелно никада не споје
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
+                                                exampleRenderer.Render(
+                                                    text = exampleText,
+                                                    action = action,
+                                                    globalType = globalType,
+                                                    arabicFont = exampleArabicFont,
+                                                    fontSize = currentExampleSize,
+                                                    textGlow = textGlow,
+                                                    redGlow = redGlow,
+                                                    onTextLayout = { textLayoutResult ->
+                                                        // Ако пукне у више редова или изађе ван оквира, смањујемо!
+                                                        if ((textLayoutResult.hasVisualOverflow || textLayoutResult.didOverflowWidth || textLayoutResult.lineCount > 1) && scaleMultiplier > 0.3f) {
+                                                            scaleMultiplier *= 0.9f
+                                                        }
                                                     }
-                                                }
-                                            )
+                                                )
+                                            }
                                         }
                                     }
                                 }

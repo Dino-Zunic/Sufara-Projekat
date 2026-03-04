@@ -30,6 +30,7 @@ import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
 import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+import com.dino.sufara.core.designsystem.components.GoldenWireButton
 
 @Composable
 fun MainMenuScreen(
@@ -124,63 +125,5 @@ fun MainMenuScreen(
 
             Spacer(modifier = Modifier.weight(2f)) 
         }
-    }
-}
-
-@Composable
-fun GoldenWireButton(onClick: () -> Unit, text: String, font: androidx.compose.ui.text.font.FontFamily) {
-    val infiniteTransition = rememberInfiniteTransition(label = "wire_anim")
-    
-    val wireEasing = Easing { fraction ->
-        val linear = fraction
-        val smooth = fraction * fraction * (3 - 2 * fraction)
-        (linear * 0.4f) + (smooth * 0.6f)
-    }
-
-    val angle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = wireEasing), 
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "angle"
-    )
-
-    val borderGradient = remember {
-        Brush.sweepGradient(
-            0.0f to Color.Transparent,
-            0.6f to Color.Transparent,
-            0.95f to GoldLight, 
-            1.0f to Color.Transparent
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(32.dp))
-            .clickable(onClick = onClick)
-            .drawBehind {
-                rotate(angle) {
-                    drawCircle(
-                        brush = borderGradient,
-                        radius = size.width, 
-                        center = Offset(size.width / 2, size.height / 2)
-                    )
-                }
-            }
-            .padding(2.dp) 
-            .background(BlueMidnight, RoundedCornerShape(30.dp))
-            .padding(horizontal = 40.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text.uppercase(),
-            color = TextParchment,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = font,
-            letterSpacing = 2.sp
-        )
     }
 }
