@@ -1,4 +1,4 @@
-IZVEŠTAJ O PROJEKTU - Wed 04 Mar 2026 09:52:17 AM CET
+IZVEŠTAJ O PROJEKTU - Wed 04 Mar 2026 08:39:55 PM CET
 ================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/repository/LocalAssetLessonRepository.kt
 ================================================================================
@@ -13,6 +13,7 @@ import com.dino.sufara.feature.lesson.domain.model.LessonStep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
+import com.dino.sufara.feature.lesson.data.local.QuizProgressEntity
 
 class LocalAssetLessonRepository(
     private val context: Context,
@@ -149,10 +150,70 @@ class LocalAssetLessonRepository(
         withContext(Dispatchers.IO) {
             val allLessons = getAllLessons()
             allLessons.forEach { lesson ->
-                if (lesson.status == LessonStatus.LOCKED) {
-                    dao.updateLessonProgress(LessonProgressEntity(lesson.id, LessonStatus.UNLOCKED))
-                }
+                dao.updateLessonProgress(LessonProgressEntity(lesson.id, LessonStatus.COMPLETED, System.currentTimeMillis()))
             }
+        }
+    }
+
+    override suspend fun getDueQuizzes(): List<Pair<String, LessonStep.Quiz>> = withContext(Dispatchers.IO) {
+        // 1. Nalazimo koje su lekcije završene
+        val completedLessonIds = dao.getAllLessonProgress().filter { it.status == LessonStatus.COMPLETED }.map { it.lessonId }
+        val allLessons = getAllLessons().filter { it.id in completedLessonIds }
+
+        // 2. Izvlačimo sve kvizove iz tih lekcija
+        val allUnlockedQuizzes = allLessons.flatMap { lesson ->
+            lesson.steps.filterIsInstance<LessonStep.Quiz>().map { quiz -> Pair(lesson.id, quiz) }
+        }
+
+        val currentTime = System.currentTimeMillis()
+        val dueQuizzes = mutableListOf<Pair<String, LessonStep.Quiz>>()
+
+        // 3. Filtriramo one kojima je vreme za ponavljanje prošlo (ili su novi)
+        for (item in allUnlockedQuizzes) {
+            val progress = dao.getQuizProgress(item.second.id)
+            if (progress == null || progress.nextReviewDate <= currentTime) {
+                dueQuizzes.add(item)
+            }
+        }
+        
+        // Vraćamo ih promešane da korisnik ne bi učio po redosledu lekcija!
+        return@withContext dueQuizzes.shuffled()
+    }
+
+    override suspend fun submitQuizAnswer(questionId: String, lessonId: String, isCorrect: Boolean) {
+        withContext(Dispatchers.IO) {
+            val currentProgress = dao.getQuizProgress(questionId) ?: QuizProgressEntity(questionId, lessonId)
+
+            var consecutive = currentProgress.consecutiveCorrectAnswers
+            var ef = currentProgress.easinessFactor
+            var interval = currentProgress.intervalDays
+
+            if (isCorrect) {
+                consecutive++
+                // Anki SM-2 formula za uspešan odgovor
+                interval = when (consecutive) {
+                    1 -> 1
+                    2 -> 6
+                    else -> (interval * ef).toInt()
+                }
+                // Blago nagrađujemo EF ako zna dobro
+                ef = minOf(2.5f, ef + 0.05f) 
+            } else {
+                consecutive = 0
+                interval = 1 // Vraćamo ga na početak
+                ef = maxOf(1.3f, ef - 0.2f) // Kažnjavamo EF jer je teško pitanje (ne ide ispod 1.3)
+            }
+
+            // Računamo sledeće vreme u milisekundama (interval u danima * 24h * 60m * 60s * 1000ms)
+            val nextReview = System.currentTimeMillis() + interval * 86400000L
+
+            com.dino.sufara.feature.lesson.domain.util.SufaraLogger.log(
+                "ANKI DEBUG: Pitanje [$questionId] | Tačno: $isCorrect | Zaredom: $consecutive | EF: $ef | Interval: $interval dana"
+            )
+
+            dao.updateQuizProgress(
+                QuizProgressEntity(questionId, lessonId, nextReview, interval, consecutive, ef)
+            )
         }
     }
 }-e 
@@ -233,6 +294,9 @@ interface SufaraDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateQuizProgress(progress: QuizProgressEntity)
+
+    @Query("SELECT * FROM quiz_progress WHERE questionId = :id LIMIT 1")
+    suspend fun getQuizProgress(id: String): QuizProgressEntity?
 }-e 
 
 
@@ -271,6 +335,7 @@ PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/domain/re
 package com.dino.sufara.feature.lesson.domain.repository
 
 import com.dino.sufara.feature.lesson.domain.model.Lesson
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
 
 interface LessonRepository {
     suspend fun getAllLessons(): List<Lesson>
@@ -278,6 +343,8 @@ interface LessonRepository {
     suspend fun getFunFacts(): List<String>
     suspend fun completeLessonAndUnlockNext(currentLessonId: String)
     suspend fun unlockAllLessons()
+    suspend fun getDueQuizzes(): List<Pair<String, LessonStep.Quiz>>
+    suspend fun submitQuizAnswer(questionId: String, lessonId: String, isCorrect: Boolean)
 }-e 
 
 
@@ -630,7 +697,8 @@ import com.dino.sufara.feature.lesson.domain.model.LessonStep
 import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
-import com.dino.sufara.feature.lesson.presentation.viewer.animations.getScreenTransition
+// ИСПРАВКА: Вратили смо стару логику за анимације!
+import com.dino.sufara.feature.lesson.presentation.viewer.animations.getCardTransition
 import com.dino.sufara.feature.lesson.presentation.viewer.components.*
 import kotlinx.coroutines.delay
 
@@ -675,7 +743,6 @@ fun LessonViewerScreen(
     val currentStep = steps[currentIndex]
     val progress = (currentIndex + 1).toFloat() / steps.size.toFloat()
 
-    // Логика: Да ли је "Даље" омогућено?
     val isNextEnabled = remember(lesson!!.status, completedSteps, currentIndex, currentStep) {
         lesson!!.status == LessonStatus.COMPLETED || 
         completedSteps.contains(currentIndex) || 
@@ -757,6 +824,7 @@ fun LessonViewerScreen(
             }
         )
     }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
@@ -765,8 +833,15 @@ fun LessonViewerScreen(
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragEnd = { 
-                        if (swipeOffset > 150) handlePrevStep() 
-                        else if (swipeOffset < -150 && isNextEnabled) handleNextStep()
+                        if (swipeOffset > 150) {
+                            handlePrevStep() 
+                        } else if (swipeOffset < -150) {
+                            if (isNextEnabled) {
+                                handleNextStep()
+                            } else {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            }
+                        }
                         swipeOffset = 0f 
                     }
                 ) { change, dragAmount -> 
@@ -804,7 +879,11 @@ fun LessonViewerScreen(
             AnimatedContent(
                 targetState = Pair(currentIndex, currentStep), 
                 transitionSpec = { 
-                    getScreenTransition(targetState.first > initialState.first) 
+                    // ИСПРАВКА: Поново користимо опцију из подешавања!
+                    getCardTransition(
+                        type = settings.cardAnimation, 
+                        isForward = targetState.first > initialState.first
+                    ) 
                 }, 
                 label = "ScreenTransition", 
                 modifier = Modifier
@@ -1372,7 +1451,13 @@ fun QuizStepScreen(step: LessonStep.Quiz, onActionComplete: () -> Unit, onAutoAd
         var selectedAnswer by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp), verticalArrangement = Arrangement.Center) {
+        // ИСПРАВКА: Користимо start, end и top уместо horizontal и top
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 24.dp, end = 24.dp, top = 48.dp), 
+            verticalArrangement = Arrangement.Top
+        ) {
             SufaraText(text = step.question, modifier = Modifier.padding(bottom = 32.dp))
 
             shuffledAnswers.forEach { answer ->
@@ -1381,8 +1466,8 @@ fun QuizStepScreen(step: LessonStep.Quiz, onActionComplete: () -> Unit, onAutoAd
                 val hasAnswered = selectedAnswer != null
 
                 val containerColor = when {
-                    hasAnswered && isCorrect -> Color(0xFF4CAF50) // Зелено за тачно
-                    hasAnswered && isSelected && !isCorrect -> MaterialTheme.colorScheme.error // Црвено за погрешно
+                    hasAnswered && isCorrect -> Color(0xFF4CAF50) 
+                    hasAnswered && isSelected && !isCorrect -> MaterialTheme.colorScheme.error 
                     else -> MaterialTheme.colorScheme.surface
                 }
 
@@ -2136,36 +2221,36 @@ package com.dino.sufara.feature.lesson.presentation.viewer.animations
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.unit.IntOffset
 
 enum class CardAnimationType { SLIDE, SCALE_FADE, TILT_SLIDE, FADE }
 
-@OptIn(ExperimentalAnimationApi::class)
 fun getCardTransition(type: CardAnimationType, isForward: Boolean): ContentTransform {
-    // Punchy (брз и одсечан) ефекат анимације
-    val duration = 250
-    val slideSpec = tween<IntOffset>(durationMillis = duration, easing = FastOutSlowInEasing)
-    val floatSpec = tween<Float>(durationMillis = duration, easing = FastOutSlowInEasing)
-    
-    val offset = if (isForward) 1200 else -1200
+    val duration = 400
+    val easing = FastOutSlowInEasing
     
     return when (type) {
         CardAnimationType.SLIDE -> {
-            (slideInHorizontally(slideSpec) { offset } + fadeIn(floatSpec)) togetherWith
-            (slideOutHorizontally(slideSpec) { -offset } + fadeOut(floatSpec))
+            (slideInHorizontally(tween(duration, easing = easing)) { if (isForward) it else -it } + 
+            fadeIn(tween(duration))) togetherWith 
+            (slideOutHorizontally(tween(duration, easing = easing)) { if (isForward) -it else it } + 
+            fadeOut(tween(duration)))
         }
         CardAnimationType.SCALE_FADE -> {
-            (scaleIn(floatSpec, initialScale = 0.8f) + fadeIn(floatSpec)) togetherWith
-            (scaleOut(floatSpec, targetScale = 0.8f) + fadeOut(floatSpec))
+            (scaleIn(tween(duration, easing = easing), initialScale = 0.8f) + 
+            fadeIn(tween(duration))) togetherWith 
+            (scaleOut(tween(duration, easing = easing), targetScale = 0.8f) + 
+            fadeOut(tween(duration)))
         }
         CardAnimationType.TILT_SLIDE -> {
-            val enterOffset = if (isForward) 800 else -800
-            val exitOffset = if (isForward) -400 else 400
-            (slideInHorizontally(slideSpec) { enterOffset } + scaleIn(floatSpec, 0.85f) + fadeIn(floatSpec)) togetherWith
-            (slideOutHorizontally(slideSpec) { exitOffset } + scaleOut(floatSpec, 0.85f) + fadeOut(floatSpec))
+            (slideInHorizontally(tween(duration, easing = easing)) { if (isForward) it / 2 else -it / 2 } + 
+            scaleIn(tween(duration, easing = easing), initialScale = 0.9f) + 
+            fadeIn(tween(duration))) togetherWith 
+            (slideOutHorizontally(tween(duration, easing = easing)) { if (isForward) -it / 2 else it / 2 } + 
+            scaleOut(tween(duration, easing = easing), targetScale = 0.9f) + 
+            fadeOut(tween(duration)))
         }
         CardAnimationType.FADE -> {
-            fadeIn(floatSpec) togetherWith fadeOut(floatSpec)
+            fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
         }
     }
 }-e 
@@ -2257,6 +2342,220 @@ class LessonViewerViewModel(
 
 
 ================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/anki/AnkiQuizScreen.kt
+================================================================================
+package com.dino.sufara.feature.lesson.presentation.anki
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dino.sufara.core.designsystem.BlueMidnight
+import com.dino.sufara.core.designsystem.GoldBase
+import com.dino.sufara.feature.lesson.domain.util.asScript
+import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
+import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+import com.dino.sufara.feature.lesson.presentation.viewer.components.SufaraText
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+@Composable
+fun AnkiQuizScreen(viewModel: AnkiQuizViewModel, onNavigateBack: () -> Unit) {
+    val isLoading by viewModel.isLoading.collectAsState()
+    val currentQuestion by viewModel.currentQuestion.collectAsState()
+    val remainingCount by viewModel.remainingCount.collectAsState()
+    
+    val settings = LocalSufaraSettings.current
+    val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // --- HEADER ---
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 24.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onNavigateBack) { Icon(Icons.Default.Close, contentDescription = "Zatvori", tint = MaterialTheme.colorScheme.onBackground) }
+            Spacer(modifier = Modifier.width(8.dp))
+            if (!isLoading && remainingCount > 0) {
+                Text(text = "Preostalo: $remainingCount".asScript(), color = GoldBase, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GoldBase) }
+        } else if (currentQuestion == null) {
+            // --- EDGE CASE: SVE JE ZAVRŠENO ---
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                    Text(text = "🎉", fontSize = 64.sp, modifier = Modifier.padding(bottom = 16.dp))
+                    Text(
+                        text = "Sve si ponovio za danas!".asScript(),
+                        fontFamily = cyrillicFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = GoldBase, textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Tvoj mozak sada konsoliduje znanje. Otključaj nove lekcije ili se odmori.".asScript(),
+                        fontFamily = cyrillicFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(48.dp))
+                    Button(onClick = onNavigateBack, colors = ButtonDefaults.buttonColors(containerColor = BlueMidnight)) {
+                        Text("Nazad na glavni meni".asScript(), color = GoldBase, modifier = Modifier.padding(8.dp))
+                    }
+                }
+            }
+        } else {
+            // --- KVIZ EKRAN ---
+            val quiz = currentQuestion!!.second
+            var attemptCount by remember { mutableIntStateOf(0) }
+            
+            key(quiz.id, attemptCount) {
+                val shuffledAnswers = remember { quiz.answers.shuffled() }
+                var selectedAnswer by remember { mutableStateOf<String?>(null) }
+                val scope = rememberCoroutineScope()
+
+                AnimatedContent(targetState = quiz, transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) }, label = "anki_anim") { _ ->
+                    // ИСПРАВКА ПАДИНГА: Користимо start, end и top
+                    Column(modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 24.dp), verticalArrangement = Arrangement.Top) {
+                        
+                        SufaraText(text = quiz.question, modifier = Modifier.padding(bottom = 32.dp))
+
+                        shuffledAnswers.forEach { answer ->
+                            val isCorrect = answer == quiz.correctAnswer
+                            val isSelected = selectedAnswer == answer
+                            val hasAnswered = selectedAnswer != null
+
+                            val containerColor = when {
+                                hasAnswered && isCorrect -> Color(0xFF4CAF50)
+                                hasAnswered && isSelected && !isCorrect -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.surface
+                            }
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).clickable(enabled = !hasAnswered) {
+                                    selectedAnswer = answer
+                                    scope.launch { 
+                                        delay(1000) 
+                                        viewModel.submitAnswer(isCorrect = answer == quiz.correctAnswer)
+                                    }
+                                },
+                                colors = CardDefaults.cardColors(containerColor = containerColor)
+                            ) {
+                                SufaraText(text = answer, modifier = Modifier.padding(16.dp))
+                            }
+                        }
+
+                        if (selectedAnswer != null && selectedAnswer != quiz.correctAnswer) {
+                            Box(modifier = Modifier.fillMaxWidth().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                selectedAnswer = null
+                                attemptCount++ 
+                            }) {
+                                Text(
+                                    text = "Dodirni bilo gde za ponovni pokušaj".asScript(),
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.align(Alignment.Center).padding(top = 32.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}-e 
+
+
+================================================================================
+PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/anki/AnkiQuizViewModel.kt
+================================================================================
+package com.dino.sufara.feature.lesson.presentation.anki
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class AnkiQuizViewModel(private val repository: LessonRepository) : ViewModel() {
+
+    // Lista svih dospjelih pitanja (lessonId, Quiz)
+    private val _dueQuizzes = MutableStateFlow<List<Pair<String, LessonStep.Quiz>>>(emptyList())
+    
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading = _isLoading.asStateFlow()
+
+    private val _currentQuestion = MutableStateFlow<Pair<String, LessonStep.Quiz>?>(null)
+    val currentQuestion = _currentQuestion.asStateFlow()
+
+    // Koliko nam je ostalo do kraja sesije
+    private val _remainingCount = MutableStateFlow(0)
+    val remainingCount = _remainingCount.asStateFlow()
+
+    init {
+        loadDueQuizzes()
+    }
+
+    private fun loadDueQuizzes() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val quizzes = repository.getDueQuizzes()
+            _dueQuizzes.value = quizzes
+            _remainingCount.value = quizzes.size
+            _currentQuestion.value = quizzes.firstOrNull()
+            _isLoading.value = false
+        }
+    }
+
+fun submitAnswer(isCorrect: Boolean) {
+        val current = _currentQuestion.value ?: return
+        
+        viewModelScope.launch {
+            // 1. Uvijek upisujemo u bazu da bi algoritam znao da je bila greška (ili pogodak)
+            repository.submitQuizAnswer(current.second.id, current.first, isCorrect)
+            
+            val currentList = _dueQuizzes.value.toMutableList()
+            
+            if (isCorrect) {
+                // Ako je tačno, samo ga izbacimo iz liste
+                if (currentList.isNotEmpty()) {
+                    currentList.removeAt(0)
+                }
+            } else {
+                // AKO JE GREŠKA: 
+                // Pomeramo ga sa prvog mesta na kraj liste da bi se ponovo pojavilo
+                if (currentList.isNotEmpty()) {
+                    val failedQuestion = currentList.removeAt(0)
+                    currentList.add(failedQuestion) // Ide na kraj "queue"-a
+                }
+            }
+            
+            // 2. Ažuriramo stanje
+            _dueQuizzes.value = currentList
+            _remainingCount.value = currentList.size
+            _currentQuestion.value = currentList.firstOrNull()
+            
+            com.dino.sufara.feature.lesson.domain.util.SufaraLogger.log(
+                "ANKI QUEUE: Preostalo pitanja: ${currentList.size}. Sljedeće: ${_currentQuestion.value?.second?.id ?: "Nema"}"
+            )
+        }
+    }
+}-e 
+
+
+================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/presentation/grid/LessonGridScreen.kt
 ================================================================================
 package com.dino.sufara.feature.lesson.presentation.grid
@@ -2288,6 +2587,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dino.sufara.core.designsystem.GoldBase
 import com.dino.sufara.core.designsystem.GoldLight
 import com.dino.sufara.core.designsystem.TextMutedGold
 import com.dino.sufara.core.designsystem.TextParchment
@@ -2400,27 +2700,27 @@ fun LessonPathNode(
     val isLocked = lesson.status == LessonStatus.LOCKED
     val isUnlocked = lesson.status == LessonStatus.UNLOCKED
     
-    // Ако је закључана, бледа је (opacity 30%). Иначе пуна боја.
     val visualAlpha = if (isLocked) 0.3f else 1f
     val currentBodyColor = bodyColor.copy(alpha = visualAlpha)
 
-    // Анимација жице која сија (само за откључану, тј. тренутну лекцију)
+    // Анимација жице (ИДЕНТИЧНО КАО КОД ДУГМЕТА)
     val infiniteTransition = rememberInfiniteTransition(label = "map_wire")
     val wireAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3500, easing = LinearEasing)
+            animation = tween(3500, easing = LinearEasing) // LinearEasing за константно вртење
         ),
         label = "map_wire_angle"
     )
     
-    val borderGradient = remember {
+    val baseGold = GoldBase.copy(alpha = 0.5f)
+    val borderGradient = remember(baseGold) {
         Brush.sweepGradient(
-            0f to Color.Transparent,
-            0.7f to Color.Transparent,
+            0f to baseGold,
+            0.6f to baseGold,
             0.95f to GoldLight,
-            1f to Color.Transparent
+            1f to baseGold
         )
     }
     // ----------------------------------
@@ -2450,7 +2750,7 @@ fun LessonPathNode(
                     if (arcLen >= nextDotTarget && nextDotTarget < spacing) {
                         val localY = circleRadiusPx + (currY - startGlobalY)
                         drawCircle(
-                            color = currentBodyColor.copy(alpha = 0.4f * visualAlpha), // Прилагођена видљивост путање
+                            color = currentBodyColor.copy(alpha = 0.4f * visualAlpha),
                             radius = 4.dp.toPx(),
                             center = Offset(centerX + newX, localY)
                         )
@@ -2468,29 +2768,33 @@ fun LessonPathNode(
                 .width(130.dp), 
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Овде је исправљена "коцкаста" жица! Контејнер је сада 84.dp
             Box(
                 modifier = Modifier
                     .size(84.dp)
+                    .clip(CircleShape) // Овај clip штити спољне ивице да не постану коцкасте
+                    .then(if (!isLocked) Modifier.clickable(onClick = onClick) else Modifier)
                     .then(
                         if (isUnlocked) {
                             Modifier.drawBehind {
                                 rotate(wireAngle) {
-                                    drawCircle(brush = borderGradient) 
+                                    // radius = size.width / 2 гарантује да жица не излази ван круга!
+                                    drawCircle(brush = borderGradient, radius = size.width / 2) 
                                 }
                             }
+                            // Падинг који прави дебљину жице. Након падинга долази унутрашњи круг.
+                            .padding(2.dp) 
                         } else Modifier
                     )
-                    .padding(4.dp) 
-                    .clip(CircleShape)
-                    .then(if (!isLocked) Modifier.clickable(onClick = onClick) else Modifier)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = visualAlpha)),
+                    // Унутрашњи круг
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = visualAlpha), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 if (lesson.symbol == "📖" || lesson.symbol == ".") {
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = "Osnova",
-                        tint = currentBodyColor, // ДОДАТО: Затамњена боја ако је закључано
+                        tint = currentBodyColor, 
                         modifier = Modifier.size(36.dp)
                     )
                 } else {
@@ -2498,7 +2802,7 @@ fun LessonPathNode(
                         text = lesson.symbol,
                         fontFamily = arabicFont,
                         fontSize = 36.sp,
-                        color = currentBodyColor, // ДОДАТО: Затамњена боја ако је закључано
+                        color = currentBodyColor, 
                         modifier = Modifier.padding(bottom = 6.dp) 
                     )
                 }
@@ -2508,7 +2812,7 @@ fun LessonPathNode(
             
             Text(
                 text = lesson.title.asScript(),
-                color = currentBodyColor, // ДОДАТО: Затамњена боја ако је закључано
+                color = currentBodyColor, 
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -2577,7 +2881,10 @@ import com.dino.sufara.feature.lesson.presentation.viewer.components.SufaraText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateBack: () -> Unit) { 
+fun SettingsScreen(
+    onNavigateBack: () -> Unit,
+    onUnlockExpertMode: () -> Unit // НОВО: Директна акција из NavGraph-a
+) { 
     val settings = LocalSufaraSettings.current
     val actions = LocalSufaraSettingsActions.current
 
@@ -2596,7 +2903,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         }
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text("Pismo / Script".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        // ПИСМО
+        Text("Pismo".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2606,37 +2914,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Prikaz uživo:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                Spacer(modifier = Modifier.height(8.dp))
-                SufaraText(text = "Ovo je tekst.\nA ovo je arapski primer:\nبِسْمِ اللَّهِ".asScript())
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Text("Boja običnog teksta".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
-        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
-        
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BodyTextColorTheme.entries.forEach { theme ->
-                FilterChip(selected = settings.bodyTextColorTheme == theme, onClick = { actions.updateBodyTextColor(theme) }, label = { Text(theme.name.lowercase().replaceFirstChar { it.uppercase() }) })
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Boja sjaja primjera (Glow)".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
-        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
-        
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlowColorTheme.entries.forEach { theme ->
-                FilterChip(selected = settings.glowColorTheme == theme, onClick = { actions.updateGlowColor(theme) }, label = { Text(theme.name) })
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
+        // ФОНТ ЗА ТЕКСТ
         Text("Font za tekst".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
@@ -2651,20 +2929,30 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // АРАПСКИ ФОНТ
         Text("Arapski".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Amiri", "Noto Naskh", "KFGQPC").forEach { font ->
+            listOf("KFGQPC", "Amiri", "Noto Naskh").forEach { font ->
                 FilterChip(selected = settings.arabicFont == font, onClick = { actions.updateArabicFont(font) }, label = { Text(font) })
             }
         }
 
-        Text("Veličina: ".asScript() + "${(settings.arabicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
-        Slider(value = settings.arabicSizeMultiplier, onValueChange = { actions.updateArabicSize(it) }, valueRange = 0.6f..2.0f)
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // LIVE ПРЕВЈУ (Сада је испод фонтова и има неутралан текст)
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Prikaz uživo:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Spacer(modifier = Modifier.height(8.dp))
+                SufaraText(text = "Ovo je tekst.\nA ovo je arapski primer:\nكِتَابٌ مُفِيدٌ".asScript())
+            }
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // ОПЦИЈЕ ПРИКАЗА
         Text("Opcije prikaza".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
 
@@ -2682,33 +2970,21 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Text("Анимација картица".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
-        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            com.dino.sufara.feature.lesson.presentation.viewer.animations.CardAnimationType.entries.forEach { anim ->
-                FilterChip(
-                    selected = settings.cardAnimation == anim,
-                    onClick = { actions.updateCardAnimation(anim) },
-                    label = { Text(anim.name) }
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text("Развој и тестирање".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        // РАЗВОЈ (ЕКСПЕРТ МОД)
+        Text("Razvoj i testiranje".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Експерт Мод (Откључај све)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Text("Ekspert Mod (Završi sve)".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Button(
-                onClick = { actions.unlockExpertMode() },
+                onClick = { onUnlockExpertMode() }, // Позивамо функцију која окида базу!
                 enabled = !settings.isExpertModeUnlocked,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text(if (settings.isExpertModeUnlocked) "ОТКЉУЧАНО".asScript() else "ОТКЉУЧАЈ".asScript())
+                Text(if (settings.isExpertModeUnlocked) "OTKLJUČANO".asScript() else "OTKLJUČAJ".asScript())
             }
         }
+        Spacer(modifier = Modifier.height(48.dp))
     }
 }-e 
 
@@ -2769,30 +3045,28 @@ enum class GlowColorTheme { GOLD, AZURE, PURPLE, NONE }
 
 data class SufaraSettingsState(
     val cyrillicFont: String = "Lora",
-    val arabicFont: String = "Noto Naskh",
+    val arabicFont: String = "KFGQPC",
     val cyrillicSizeMultiplier: Float = 1.0f,
-    val arabicSizeMultiplier: Float = 1.0f,
+    // ЗАКУЦАНЕ ВРЕДНОСТИ
+    val arabicSizeMultiplier: Float = 1.8f, 
     val isExpertModeUnlocked: Boolean = false,
-    val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER,
-    val glowColorTheme: GlowColorTheme = GlowColorTheme.AZURE,
+    val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER, 
+    val glowColorTheme: GlowColorTheme = GlowColorTheme.GOLD, 
+    val cardAnimation: CardAnimationType = CardAnimationType.TILT_SLIDE,
+    // ОПЦИЈЕ ПРИКАЗА
     val isCyrillic: Boolean = false,
     val showIpa: Boolean = true,
-    val showSeparatedLetters: Boolean = true,
-    val cardAnimation: CardAnimationType = CardAnimationType.SLIDE
+    val showSeparatedLetters: Boolean = true
 )
 
 interface SufaraSettingsActions {
     fun updateCyrillicFont(name: String)
     fun updateArabicFont(name: String)
     fun updateCyrillicSize(size: Float)
-    fun updateArabicSize(size: Float)
     fun unlockExpertMode()
-    fun updateBodyTextColor(theme: BodyTextColorTheme)
-    fun updateGlowColor(theme: GlowColorTheme)
     fun updateScript(isCyrillic: Boolean)
     fun toggleIpa(enabled: Boolean)
     fun toggleSeparatedLetters(enabled: Boolean)
-    fun updateCardAnimation(type: CardAnimationType) // НОВО
 }
 
 val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
@@ -2804,44 +3078,31 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
     val prefs = remember { context.getSharedPreferences("sufara_prefs", Context.MODE_PRIVATE) }
 
     var cyrillicFont by remember { mutableStateOf(prefs.getString("cyr_font", "Lora") ?: "Lora") }
-    var arabicFont by remember { mutableStateOf(prefs.getString("ar_font", "Noto Naskh") ?: "Noto Naskh") } 
+    var arabicFont by remember { mutableStateOf(prefs.getString("ar_font", "KFGQPC") ?: "KFGQPC") } 
     var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f).coerceIn(0.6f, 1.5f)) }
-    var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f).coerceIn(0.6f, 2.0f)) }
     var isExpertModeUnlocked by remember { mutableStateOf(prefs.getBoolean("expert_mode", false)) }
     var showIpa by remember { mutableStateOf(prefs.getBoolean("show_ipa", true)) }
     var showSeparatedLetters by remember { mutableStateOf(prefs.getBoolean("show_separated", true)) }
-    
-    var cardAnimation by remember { 
-        mutableStateOf(CardAnimationType.valueOf(prefs.getString("card_anim", CardAnimationType.SLIDE.name) ?: CardAnimationType.SLIDE.name)) 
-    }
-    
-    var bodyTextColorTheme by remember { 
-        mutableStateOf(BodyTextColorTheme.valueOf(prefs.getString("body_color_theme", BodyTextColorTheme.SILVER.name) ?: BodyTextColorTheme.SILVER.name)) 
-    }
-    
-    var glowColorTheme by remember {
-        mutableStateOf(GlowColorTheme.valueOf(prefs.getString("glow_color_theme", GlowColorTheme.AZURE.name) ?: GlowColorTheme.AZURE.name))
-    }
-
     var isCyrillic by remember { mutableStateOf(prefs.getBoolean("is_cyrillic", false)) }
 
     val settingsState = SufaraSettingsState(
-        cyrillicFont, arabicFont, cyrillicSize, arabicSize, isExpertModeUnlocked, 
-        bodyTextColorTheme, glowColorTheme, isCyrillic, showIpa, showSeparatedLetters, cardAnimation
+        cyrillicFont = cyrillicFont, 
+        arabicFont = arabicFont, 
+        cyrillicSizeMultiplier = cyrillicSize, 
+        isExpertModeUnlocked = isExpertModeUnlocked,
+        isCyrillic = isCyrillic, 
+        showIpa = showIpa, 
+        showSeparatedLetters = showSeparatedLetters
     )
 
     val actions = object : SufaraSettingsActions {
         override fun updateCyrillicFont(name: String) { cyrillicFont = name; prefs.edit().putString("cyr_font", name).apply() }
         override fun updateArabicFont(name: String) { arabicFont = name; prefs.edit().putString("ar_font", name).apply() }
         override fun updateCyrillicSize(size: Float) { cyrillicSize = size; prefs.edit().putFloat("cyr_size", size).apply() }
-        override fun updateArabicSize(size: Float) { arabicSize = size; prefs.edit().putFloat("ar_size", size).apply() }
         override fun unlockExpertMode() { isExpertModeUnlocked = true; prefs.edit().putBoolean("expert_mode", true).apply() }
-        override fun updateBodyTextColor(theme: BodyTextColorTheme) { bodyTextColorTheme = theme; prefs.edit().putString("body_color_theme", theme.name).apply() }
-        override fun updateGlowColor(theme: GlowColorTheme) { glowColorTheme = theme; prefs.edit().putString("glow_color_theme", theme.name).apply() }
         override fun updateScript(cyrillic: Boolean) { isCyrillic = cyrillic; prefs.edit().putBoolean("is_cyrillic", cyrillic).apply() }
         override fun toggleIpa(enabled: Boolean) { showIpa = enabled; prefs.edit().putBoolean("show_ipa", enabled).apply() }
         override fun toggleSeparatedLetters(enabled: Boolean) { showSeparatedLetters = enabled; prefs.edit().putBoolean("show_separated", enabled).apply() }
-        override fun updateCardAnimation(type: CardAnimationType) { cardAnimation = type; prefs.edit().putString("card_anim", type.name).apply() }
     }
 
     CompositionLocalProvider(
@@ -3106,7 +3367,6 @@ import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.room.Room
 import com.dino.sufara.core.designsystem.SufaraTheme
-// ИСПРАВКА: Нова путања до базе
 import com.dino.sufara.feature.lesson.data.local.AppDatabase
 import com.dino.sufara.feature.lesson.data.repository.LocalAssetLessonRepository
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraSettingsProvider
@@ -3117,6 +3377,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen() 
         super.onCreate(savedInstanceState)
         
+        applicationContext.deleteDatabase("sufara_database")
+
         val database = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,
@@ -3148,6 +3410,7 @@ package com.dino.sufara.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -3158,6 +3421,9 @@ import com.dino.sufara.feature.lesson.presentation.viewer.LessonViewerScreen
 import com.dino.sufara.feature.lesson.presentation.viewer.LessonViewerViewModel
 import com.dino.sufara.feature.lesson.presentation.settings.SettingsScreen
 import com.dino.sufara.presentation.MainMenuScreen
+import com.dino.sufara.feature.lesson.presentation.anki.AnkiQuizScreen
+import com.dino.sufara.feature.lesson.presentation.anki.AnkiQuizViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun SufaraNavGraph(repository: LessonRepository) {
@@ -3166,27 +3432,26 @@ fun SufaraNavGraph(repository: LessonRepository) {
     NavHost(navController = navController, startDestination = "main_menu") {
         composable("main_menu") {
             MainMenuScreen(
-                repository = repository, // НОВО: Прослеђујемо репозиторијум
+                repository = repository,
                 onStartClick = { navController.navigate("lesson_grid") },
-                onSettingsClick = { navController.navigate("settings") }
+                onSettingsClick = { navController.navigate("settings") },
+                onAnkiClick = { navController.navigate("anki_quiz") }
             )
         }
         
-        // RUTA ZA PODEŠAVANJA
         composable("settings") {
             val scope = rememberCoroutineScope()
-            // Прослеђујемо LocalSufaraSettingsActions да бисмо реаговали на клик
             val actions = com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettingsActions.current
-            val settings = com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings.current
             
-            // Пратимо промену: ако корисник кликне дугме, стање постаје true, и ми окидамо базу
-            LaunchedEffect(settings.isExpertModeUnlocked) {
-                if (settings.isExpertModeUnlocked) {
-                    repository.unlockAllLessons()
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onUnlockExpertMode = {
+                    scope.launch { 
+                        repository.unlockAllLessons() 
+                    }
+                    actions.unlockExpertMode()
                 }
-            }
-
-            SettingsScreen(onNavigateBack = { navController.popBackStack() })
+            )
         }
 
         composable("lesson_grid") {
@@ -3204,6 +3469,14 @@ fun SufaraNavGraph(repository: LessonRepository) {
             val viewModel = remember { LessonViewerViewModel(repository, lessonId) }
             LessonViewerScreen(
                 viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("anki_quiz") {
+            val viewModel = remember { AnkiQuizViewModel(repository) }
+            AnkiQuizScreen(
+                viewModel = viewModel, 
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -3244,34 +3517,58 @@ import com.dino.sufara.feature.lesson.domain.repository.LessonRepository
 import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+import kotlinx.coroutines.delay
 
 @Composable
 fun MainMenuScreen(
     repository: LessonRepository,
     onStartClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onAnkiClick: () -> Unit
 ) {
     val settings = LocalSufaraSettings.current
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
     
-    var facts by remember { mutableStateOf(listOf("Учитавање...")) }
-    var currentFact by remember { mutableStateOf("Учитавање...") }
-    
-    // НОВО: Стање за прогрес лекција
     var totalLessons by remember { mutableIntStateOf(0) }
     var completedLessons by remember { mutableIntStateOf(0) }
     
+    var allFacts by remember { mutableStateOf(listOf<String>()) }
+    var shuffledBag by remember { mutableStateOf(emptyList<String>()) }
+    var factIndex by remember { mutableIntStateOf(0) }
+    
+    val currentFact = if (shuffledBag.isNotEmpty()) shuffledBag[factIndex] else "Учитавање..."
+
+    val showNextFact = {
+        if (factIndex >= shuffledBag.size - 1) {
+            val lastFact = shuffledBag.last()
+            var newBag = allFacts.shuffled()
+            while (newBag.first() == lastFact && allFacts.size > 1) {
+                newBag = allFacts.shuffled()
+            }
+            shuffledBag = newBag
+            factIndex = 0
+        } else {
+            factIndex++
+        }
+    }
+
     LaunchedEffect(Unit) {
         val loadedFacts = repository.getFunFacts()
         if (loadedFacts.isNotEmpty()) {
-            facts = loadedFacts
-            currentFact = facts.random()
+            allFacts = loadedFacts
+            shuffledBag = loadedFacts.shuffled() 
         }
-        
-        // Учитавање прогреса
         val all = repository.getAllLessons()
         totalLessons = all.size
         completedLessons = all.count { it.status == LessonStatus.COMPLETED }
+    }
+
+    // ИСПРАВКА: Време промене чињенице повећано на 2 минута (120,000 ms)
+    LaunchedEffect(factIndex, shuffledBag) {
+        if (shuffledBag.isNotEmpty()) {
+            delay(120_000L)
+            showNextFact()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -3282,7 +3579,7 @@ fun MainMenuScreen(
 
         Column(modifier = Modifier.fillMaxSize()) {
             
-            Spacer(modifier = Modifier.weight(0.8f))
+            Spacer(modifier = Modifier.weight(0.2f))
 
             Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 val metallicGoldBrush = remember { Brush.verticalGradient(listOf(GoldLight, GoldBase, GoldDark)) }
@@ -3293,8 +3590,8 @@ fun MainMenuScreen(
                     style = TextStyle(brush = metallicGoldBrush, shadow = titleShadow, fontSize = 64.sp, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
                 )
                 
-                // НОВО: Дизајн Прогрес Бара (Испод Наслова)
                 Spacer(modifier = Modifier.height(24.dp))
+                
                 if (totalLessons > 0) {
                     val progressRatio = completedLessons.toFloat() / totalLessons.toFloat()
                     val percentage = (progressRatio * 100).toInt()
@@ -3316,26 +3613,43 @@ fun MainMenuScreen(
                 Spacer(modifier = Modifier.height(48.dp))
 
                 GoldenWireButton(onClick = onStartClick, text = "Покрени лекције".asScript(), font = cyrillicFont)
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onAnkiClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.height(50.dp).padding(horizontal = 40.dp)
+                ) {
+                    Text("Обнови градиво".asScript(), color = GoldBase, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
+                }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(64.dp))
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Divider(color = TextSilver.copy(alpha = 0.4f), thickness = 1.dp)
                 
-                AnimatedContent(targetState = currentFact, transitionSpec = { fadeIn(tween(800)) togetherWith fadeOut(tween(800)) }, label = "FactAnimation") { fact ->
-                    Text(
-                        text = fact.asScript(), color = TextSilver.copy(alpha = 0.9f), fontSize = 16.sp, fontFamily = cyrillicFont, textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().clickable { 
-                            var newFact = facts.random(); while(newFact == currentFact && facts.size > 1) { newFact = facts.random() }; currentFact = newFact 
-                        }.padding(vertical = 24.dp)
-                    )
+                Box(
+                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 120.dp).clickable { showNextFact() },
+                    contentAlignment = Alignment.Center 
+                ) {
+                    AnimatedContent(targetState = currentFact, transitionSpec = { fadeIn(tween(800)) togetherWith fadeOut(tween(800)) }, label = "FactAnim") { fact ->
+                        Text(
+                            text = fact.asScript(), 
+                            color = TextSilver.copy(alpha = 0.9f), 
+                            fontSize = 14.sp, 
+                            fontFamily = cyrillicFont, 
+                            textAlign = TextAlign.Center,
+                            lineHeight = 22.sp,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                        )
+                    }
                 }
                 
                 Divider(color = TextSilver.copy(alpha = 0.4f), thickness = 1.dp)
             }
 
-            Spacer(modifier = Modifier.weight(0.5f)) 
+            Spacer(modifier = Modifier.weight(1f)) 
         }
     }
 }-e 

@@ -1,7 +1,6 @@
 package com.dino.sufara.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.compose.NavHost
@@ -16,6 +15,7 @@ import com.dino.sufara.feature.lesson.presentation.settings.SettingsScreen
 import com.dino.sufara.presentation.MainMenuScreen
 import com.dino.sufara.feature.lesson.presentation.anki.AnkiQuizScreen
 import com.dino.sufara.feature.lesson.presentation.anki.AnkiQuizViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun SufaraNavGraph(repository: LessonRepository) {
@@ -34,15 +34,16 @@ fun SufaraNavGraph(repository: LessonRepository) {
         composable("settings") {
             val scope = rememberCoroutineScope()
             val actions = com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettingsActions.current
-            val settings = com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings.current
             
-            LaunchedEffect(settings.isExpertModeUnlocked) {
-                if (settings.isExpertModeUnlocked) {
-                    repository.unlockAllLessons()
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onUnlockExpertMode = {
+                    scope.launch { 
+                        repository.unlockAllLessons() 
+                    }
+                    actions.unlockExpertMode()
                 }
-            }
-
-            SettingsScreen(onNavigateBack = { navController.popBackStack() })
+            )
         }
 
         composable("lesson_grid") {
@@ -66,7 +67,10 @@ fun SufaraNavGraph(repository: LessonRepository) {
 
         composable("anki_quiz") {
             val viewModel = remember { AnkiQuizViewModel(repository) }
-            AnkiQuizScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
+            AnkiQuizScreen(
+                viewModel = viewModel, 
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }

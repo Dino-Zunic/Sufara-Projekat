@@ -10,30 +10,28 @@ enum class GlowColorTheme { GOLD, AZURE, PURPLE, NONE }
 
 data class SufaraSettingsState(
     val cyrillicFont: String = "Lora",
-    val arabicFont: String = "Noto Naskh",
+    val arabicFont: String = "KFGQPC",
     val cyrillicSizeMultiplier: Float = 1.0f,
-    val arabicSizeMultiplier: Float = 1.0f,
+    // ЗАКУЦАНЕ ВРЕДНОСТИ
+    val arabicSizeMultiplier: Float = 1.8f, 
     val isExpertModeUnlocked: Boolean = false,
-    val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER,
-    val glowColorTheme: GlowColorTheme = GlowColorTheme.AZURE,
+    val bodyTextColorTheme: BodyTextColorTheme = BodyTextColorTheme.SILVER, 
+    val glowColorTheme: GlowColorTheme = GlowColorTheme.GOLD, 
+    val cardAnimation: CardAnimationType = CardAnimationType.TILT_SLIDE,
+    // ОПЦИЈЕ ПРИКАЗА
     val isCyrillic: Boolean = false,
     val showIpa: Boolean = true,
-    val showSeparatedLetters: Boolean = true,
-    val cardAnimation: CardAnimationType = CardAnimationType.SLIDE
+    val showSeparatedLetters: Boolean = true
 )
 
 interface SufaraSettingsActions {
     fun updateCyrillicFont(name: String)
     fun updateArabicFont(name: String)
     fun updateCyrillicSize(size: Float)
-    fun updateArabicSize(size: Float)
     fun unlockExpertMode()
-    fun updateBodyTextColor(theme: BodyTextColorTheme)
-    fun updateGlowColor(theme: GlowColorTheme)
     fun updateScript(isCyrillic: Boolean)
     fun toggleIpa(enabled: Boolean)
     fun toggleSeparatedLetters(enabled: Boolean)
-    fun updateCardAnimation(type: CardAnimationType) // НОВО
 }
 
 val LocalSufaraSettings = compositionLocalOf { SufaraSettingsState() }
@@ -45,44 +43,31 @@ fun SufaraSettingsProvider(content: @Composable () -> Unit) {
     val prefs = remember { context.getSharedPreferences("sufara_prefs", Context.MODE_PRIVATE) }
 
     var cyrillicFont by remember { mutableStateOf(prefs.getString("cyr_font", "Lora") ?: "Lora") }
-    var arabicFont by remember { mutableStateOf(prefs.getString("ar_font", "Noto Naskh") ?: "Noto Naskh") } 
+    var arabicFont by remember { mutableStateOf(prefs.getString("ar_font", "KFGQPC") ?: "KFGQPC") } 
     var cyrillicSize by remember { mutableFloatStateOf(prefs.getFloat("cyr_size", 1.0f).coerceIn(0.6f, 1.5f)) }
-    var arabicSize by remember { mutableFloatStateOf(prefs.getFloat("ar_size", 1.0f).coerceIn(0.6f, 2.0f)) }
     var isExpertModeUnlocked by remember { mutableStateOf(prefs.getBoolean("expert_mode", false)) }
     var showIpa by remember { mutableStateOf(prefs.getBoolean("show_ipa", true)) }
     var showSeparatedLetters by remember { mutableStateOf(prefs.getBoolean("show_separated", true)) }
-    
-    var cardAnimation by remember { 
-        mutableStateOf(CardAnimationType.valueOf(prefs.getString("card_anim", CardAnimationType.SLIDE.name) ?: CardAnimationType.SLIDE.name)) 
-    }
-    
-    var bodyTextColorTheme by remember { 
-        mutableStateOf(BodyTextColorTheme.valueOf(prefs.getString("body_color_theme", BodyTextColorTheme.SILVER.name) ?: BodyTextColorTheme.SILVER.name)) 
-    }
-    
-    var glowColorTheme by remember {
-        mutableStateOf(GlowColorTheme.valueOf(prefs.getString("glow_color_theme", GlowColorTheme.AZURE.name) ?: GlowColorTheme.AZURE.name))
-    }
-
     var isCyrillic by remember { mutableStateOf(prefs.getBoolean("is_cyrillic", false)) }
 
     val settingsState = SufaraSettingsState(
-        cyrillicFont, arabicFont, cyrillicSize, arabicSize, isExpertModeUnlocked, 
-        bodyTextColorTheme, glowColorTheme, isCyrillic, showIpa, showSeparatedLetters, cardAnimation
+        cyrillicFont = cyrillicFont, 
+        arabicFont = arabicFont, 
+        cyrillicSizeMultiplier = cyrillicSize, 
+        isExpertModeUnlocked = isExpertModeUnlocked,
+        isCyrillic = isCyrillic, 
+        showIpa = showIpa, 
+        showSeparatedLetters = showSeparatedLetters
     )
 
     val actions = object : SufaraSettingsActions {
         override fun updateCyrillicFont(name: String) { cyrillicFont = name; prefs.edit().putString("cyr_font", name).apply() }
         override fun updateArabicFont(name: String) { arabicFont = name; prefs.edit().putString("ar_font", name).apply() }
         override fun updateCyrillicSize(size: Float) { cyrillicSize = size; prefs.edit().putFloat("cyr_size", size).apply() }
-        override fun updateArabicSize(size: Float) { arabicSize = size; prefs.edit().putFloat("ar_size", size).apply() }
         override fun unlockExpertMode() { isExpertModeUnlocked = true; prefs.edit().putBoolean("expert_mode", true).apply() }
-        override fun updateBodyTextColor(theme: BodyTextColorTheme) { bodyTextColorTheme = theme; prefs.edit().putString("body_color_theme", theme.name).apply() }
-        override fun updateGlowColor(theme: GlowColorTheme) { glowColorTheme = theme; prefs.edit().putString("glow_color_theme", theme.name).apply() }
         override fun updateScript(cyrillic: Boolean) { isCyrillic = cyrillic; prefs.edit().putBoolean("is_cyrillic", cyrillic).apply() }
         override fun toggleIpa(enabled: Boolean) { showIpa = enabled; prefs.edit().putBoolean("show_ipa", enabled).apply() }
         override fun toggleSeparatedLetters(enabled: Boolean) { showSeparatedLetters = enabled; prefs.edit().putBoolean("show_separated", enabled).apply() }
-        override fun updateCardAnimation(type: CardAnimationType) { cardAnimation = type; prefs.edit().putString("card_anim", type.name).apply() }
     }
 
     CompositionLocalProvider(
