@@ -25,4 +25,7 @@ interface SufaraDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateQuizProgress(progress: QuizProgressEntity)
+
+    @Query("SELECT * FROM quiz_progress WHERE questionId = :id LIMIT 1")
+    suspend fun getQuizProgress(id: String): QuizProgressEntity?
 }

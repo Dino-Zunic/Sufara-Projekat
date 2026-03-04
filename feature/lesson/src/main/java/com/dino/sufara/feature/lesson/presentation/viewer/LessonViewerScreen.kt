@@ -152,6 +152,7 @@ fun LessonViewerScreen(
             }
         )
     }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
@@ -160,8 +161,15 @@ fun LessonViewerScreen(
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragEnd = { 
-                        if (swipeOffset > 150) handlePrevStep() 
-                        else if (swipeOffset < -150 && isNextEnabled) handleNextStep()
+                        if (swipeOffset > 150) {
+                            handlePrevStep() 
+                        } else if (swipeOffset < -150) {
+                            if (isNextEnabled) {
+                                handleNextStep()
+                            } else {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            }
+                        }
                         swipeOffset = 0f 
                     }
                 ) { change, dragAmount -> 

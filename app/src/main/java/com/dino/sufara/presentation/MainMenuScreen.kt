@@ -34,7 +34,8 @@ import kotlinx.coroutines.delay
 fun MainMenuScreen(
     repository: LessonRepository,
     onStartClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onAnkiClick: () -> Unit
 ) {
     val settings = LocalSufaraSettings.current
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
@@ -123,6 +124,15 @@ fun MainMenuScreen(
                 Spacer(modifier = Modifier.height(48.dp))
 
                 GoldenWireButton(onClick = onStartClick, text = "Покрени лекције".asScript(), font = cyrillicFont)
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onAnkiClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.height(50.dp).padding(horizontal = 40.dp)
+                ) {
+                    Text("Обнови градиво".asScript(), color = GoldBase, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(modifier = Modifier.height(64.dp))
@@ -130,7 +140,6 @@ fun MainMenuScreen(
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Divider(color = TextSilver.copy(alpha = 0.4f), thickness = 1.dp)
                 
-                // ИСПРАВКА: Alignment.Center осигурава да кратке чињенице буду вертикално на средини овог контејнера
                 Box(
                     modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 120.dp).clickable { showNextFact() },
                     contentAlignment = Alignment.Center 

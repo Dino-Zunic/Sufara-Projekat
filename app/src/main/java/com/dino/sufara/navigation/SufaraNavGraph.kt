@@ -14,6 +14,8 @@ import com.dino.sufara.feature.lesson.presentation.viewer.LessonViewerScreen
 import com.dino.sufara.feature.lesson.presentation.viewer.LessonViewerViewModel
 import com.dino.sufara.feature.lesson.presentation.settings.SettingsScreen
 import com.dino.sufara.presentation.MainMenuScreen
+import com.dino.sufara.feature.lesson.presentation.anki.AnkiQuizScreen
+import com.dino.sufara.feature.lesson.presentation.anki.AnkiQuizViewModel
 
 @Composable
 fun SufaraNavGraph(repository: LessonRepository) {
@@ -24,7 +26,8 @@ fun SufaraNavGraph(repository: LessonRepository) {
             MainMenuScreen(
                 repository = repository,
                 onStartClick = { navController.navigate("lesson_grid") },
-                onSettingsClick = { navController.navigate("settings") }
+                onSettingsClick = { navController.navigate("settings") },
+                onAnkiClick = { navController.navigate("anki_quiz") }
             )
         }
         
@@ -59,6 +62,11 @@ fun SufaraNavGraph(repository: LessonRepository) {
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
+        }
+
+        composable("anki_quiz") {
+            val viewModel = remember { AnkiQuizViewModel(repository) }
+            AnkiQuizScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
         }
     }
 }

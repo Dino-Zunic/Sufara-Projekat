@@ -9,6 +9,7 @@ import com.dino.sufara.feature.lesson.domain.model.LessonStep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
+import com.dino.sufara.feature.lesson.data.local.QuizProgressEntity
 
 class LocalAssetLessonRepository(
     private val context: Context,
@@ -147,6 +148,68 @@ class LocalAssetLessonRepository(
             allLessons.forEach { lesson ->
                 dao.updateLessonProgress(LessonProgressEntity(lesson.id, LessonStatus.COMPLETED, System.currentTimeMillis()))
             }
+        }
+    }
+
+    override suspend fun getDueQuizzes(): List<Pair<String, LessonStep.Quiz>> = withContext(Dispatchers.IO) {
+        // 1. Nalazimo koje su lekcije završene
+        val completedLessonIds = dao.getAllLessonProgress().filter { it.status == LessonStatus.COMPLETED }.map { it.lessonId }
+        val allLessons = getAllLessons().filter { it.id in completedLessonIds }
+
+        // 2. Izvlačimo sve kvizove iz tih lekcija
+        val allUnlockedQuizzes = allLessons.flatMap { lesson ->
+            lesson.steps.filterIsInstance<LessonStep.Quiz>().map { quiz -> Pair(lesson.id, quiz) }
+        }
+
+        val currentTime = System.currentTimeMillis()
+        val dueQuizzes = mutableListOf<Pair<String, LessonStep.Quiz>>()
+
+        // 3. Filtriramo one kojima je vreme za ponavljanje prošlo (ili su novi)
+        for (item in allUnlockedQuizzes) {
+            val progress = dao.getQuizProgress(item.second.id)
+            if (progress == null || progress.nextReviewDate <= currentTime) {
+                dueQuizzes.add(item)
+            }
+        }
+        
+        // Vraćamo ih promešane da korisnik ne bi učio po redosledu lekcija!
+        return@withContext dueQuizzes.shuffled()
+    }
+
+    override suspend fun submitQuizAnswer(questionId: String, lessonId: String, isCorrect: Boolean) {
+        withContext(Dispatchers.IO) {
+            val currentProgress = dao.getQuizProgress(questionId) ?: QuizProgressEntity(questionId, lessonId)
+
+            var consecutive = currentProgress.consecutiveCorrectAnswers
+            var ef = currentProgress.easinessFactor
+            var interval = currentProgress.intervalDays
+
+            if (isCorrect) {
+                consecutive++
+                // Anki SM-2 formula za uspešan odgovor
+                interval = when (consecutive) {
+                    1 -> 1
+                    2 -> 6
+                    else -> (interval * ef).toInt()
+                }
+                // Blago nagrađujemo EF ako zna dobro
+                ef = minOf(2.5f, ef + 0.05f) 
+            } else {
+                consecutive = 0
+                interval = 1 // Vraćamo ga na početak
+                ef = maxOf(1.3f, ef - 0.2f) // Kažnjavamo EF jer je teško pitanje (ne ide ispod 1.3)
+            }
+
+            // Računamo sledeće vreme u milisekundama (interval u danima * 24h * 60m * 60s * 1000ms)
+            val nextReview = System.currentTimeMillis() + interval * 86400000L
+
+            com.dino.sufara.feature.lesson.domain.util.SufaraLogger.log(
+                "ANKI DEBUG: Pitanje [$questionId] | Tačno: $isCorrect | Zaredom: $consecutive | EF: $ef | Interval: $interval dana"
+            )
+
+            dao.updateQuizProgress(
+                QuizProgressEntity(questionId, lessonId, nextReview, interval, consecutive, ef)
+            )
         }
     }
 }
