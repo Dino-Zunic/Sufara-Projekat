@@ -38,9 +38,9 @@ fun TheoryStepScreen(step: LessonStep.Theory, lessonId: String, lessonTitle: Str
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth().clickable { isDodatakExpanded = !isDodatakExpanded }) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.secondary)
+                        Icon(Icons.Default.Info, contentDescription = "Инфо", tint = MaterialTheme.colorScheme.secondary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Zanimljivosti (Klikni da otvoriš)".asScript(), color = MaterialTheme.colorScheme.secondary)
+                        Text("Занимљивости".asScript(), color = MaterialTheme.colorScheme.secondary)
                     }
                     AnimatedVisibility(visible = isDodatakExpanded) {
                         Column { Spacer(modifier = Modifier.height(16.dp)); SufaraText(text = step.dodatakText, lessonId = lessonId, symbol = symbol) }

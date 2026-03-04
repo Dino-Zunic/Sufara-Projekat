@@ -23,7 +23,6 @@ fun QuizStepScreen(step: LessonStep.Quiz, onActionComplete: () -> Unit, onAutoAd
         var selectedAnswer by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
-        // ИСПРАВКА: Користимо start, end и top уместо horizontal и top
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -65,7 +64,7 @@ fun QuizStepScreen(step: LessonStep.Quiz, onActionComplete: () -> Unit, onAutoAd
                     }
                 ) {
                     Text(
-                        text = "Додирни било где за поновни покушај".asScript(),
+                        text = "Додирните било где за поновни покушај".asScript(),
                         color = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.align(Alignment.Center).padding(top = 32.dp)
                     )

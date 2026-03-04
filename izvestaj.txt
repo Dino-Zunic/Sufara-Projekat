@@ -1,4 +1,4 @@
-IZVEŠTAJ O PROJEKTU - Wed 04 Mar 2026 08:39:55 PM CET
+IZVEŠTAJ O PROJEKTU - Wed 04 Mar 2026 10:07:02 PM CET
 ================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/repository/LocalAssetLessonRepository.kt
 ================================================================================
@@ -683,7 +683,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -694,13 +693,12 @@ import com.dino.sufara.core.designsystem.TextSilver
 import com.dino.sufara.core.designsystem.components.GoldenWireButton
 import com.dino.sufara.feature.lesson.domain.model.LessonStatus
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.domain.util.SufaraLogger
 import com.dino.sufara.feature.lesson.domain.util.asScript
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
-// ИСПРАВКА: Вратили смо стару логику за анимације!
 import com.dino.sufara.feature.lesson.presentation.viewer.animations.getCardTransition
 import com.dino.sufara.feature.lesson.presentation.viewer.components.*
-import kotlinx.coroutines.delay
 
 @Composable
 fun LessonViewerScreen(
@@ -713,22 +711,12 @@ fun LessonViewerScreen(
     val settings = LocalSufaraSettings.current
     val cyrillicFont = SufaraFonts.getCyrillicFont(settings.cyrillicFont)
 
-    var isLoading by remember(currentIndex) { mutableStateOf(true) }
+    // УКЛОЊЕН isLoading КОЈИ ЈЕ УБИЈАО АНИМАЦИЈУ!
     var showExitDialog by remember { mutableStateOf(false) }
     var swipeOffset by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(currentIndex) { 
-        delay(150)
-        isLoading = false 
-    }
-
     if (lesson == null) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background), 
-            contentAlignment = Alignment.Center
-        ) { 
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) { 
             CircularProgressIndicator(color = GoldBase) 
         }
         return
@@ -768,63 +756,25 @@ fun LessonViewerScreen(
         }
     }
 
-    BackHandler { 
-        handlePrevStep() 
-    }
+    BackHandler { handlePrevStep() }
 
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { 
-                Text(
-                    text = "Napuštanje lekcije".asScript(), 
-                    fontFamily = cyrillicFont, 
-                    fontSize = 22.sp, 
-                    fontWeight = FontWeight.Bold, 
-                    color = MaterialTheme.colorScheme.onSurface
-                ) 
-            },
-            text = { 
-                Text(
-                    text = "Da li ste sigurni da želite da izađete? Napredak u ovoj lekciji će biti izgubljen.".asScript(), 
-                    fontFamily = cyrillicFont, 
-                    fontSize = 16.sp, 
-                    lineHeight = 24.sp, 
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                ) 
-            },
+            title = { Text(text = "Напуштање лекције".asScript(), fontFamily = cyrillicFont, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text(text = "Да ли сте сигурни да желите да изађете? Напредак у овој лекцији ће бити изгубљен.".asScript(), fontFamily = cyrillicFont, fontSize = 16.sp, lineHeight = 24.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)) },
             containerColor = MaterialTheme.colorScheme.surface,
-            confirmButton = { 
-                TextButton(
-                    onClick = { 
-                        showExitDialog = false
-                        onNavigateBack() 
-                    }
-                ) { 
-                    Text(
-                        text = "Da".asScript(), 
-                        fontSize = 16.sp, 
-                        fontFamily = cyrillicFont, 
-                        color = TextSilver.copy(alpha = 0.6f)
-                    ) 
-                } 
-            },
-            dismissButton = { 
-                TextButton(
-                    onClick = { showExitDialog = false }
-                ) { 
-                    Text(
-                        text = "Ne".asScript(), 
-                        fontSize = 16.sp, 
-                        fontFamily = cyrillicFont, 
-                        fontWeight = FontWeight.Bold, 
-                        color = GoldBase
-                    ) 
-                } 
-            }
+            confirmButton = { TextButton(onClick = { showExitDialog = false; onNavigateBack() }) { Text(text = "Да".asScript(), fontSize = 16.sp, fontFamily = cyrillicFont, color = TextSilver.copy(alpha = 0.6f)) } },
+            dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text(text = "Не".asScript(), fontSize = 16.sp, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold, color = GoldBase) } }
         )
     }
+
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    
+    // ИСПРАВКА 2: Обезбеђујемо да pointerInput увек види најновије стање!
+    val currentIsNextEnabled by rememberUpdatedState(isNextEnabled)
+    val currentHandleNext by rememberUpdatedState(handleNextStep)
+    val currentHandlePrev by rememberUpdatedState(handlePrevStep)
 
     Column(
         modifier = Modifier
@@ -833,12 +783,17 @@ fun LessonViewerScreen(
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragEnd = { 
-                        if (swipeOffset > 150) {
-                            handlePrevStep() 
-                        } else if (swipeOffset < -150) {
-                            if (isNextEnabled) {
-                                handleNextStep()
+                        SufaraLogger.log("SWIPE END: Offset = $swipeOffset | Даље дозвољено = $currentIsNextEnabled")
+                        
+                        if (swipeOffset > 250) {
+                            SufaraLogger.log("SWIPE REGISTROVAN: Идемо НАЗАД")
+                            currentHandlePrev() 
+                        } else if (swipeOffset < -250) {
+                            if (currentIsNextEnabled) {
+                                SufaraLogger.log("SWIPE REGISTROVAN: Идемо ДАЉЕ")
+                                currentHandleNext()
                             } else {
+                                SufaraLogger.log("SWIPE ОДБИЈЕН: Даље је закључано!")
                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             }
                         }
@@ -850,102 +805,33 @@ fun LessonViewerScreen(
                 }
             }
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 8.dp, end = 24.dp, top = 16.dp, bottom = 16.dp), 
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { showExitDialog = true }) { 
-                Icon(
-                    imageVector = Icons.Default.Close, 
-                    contentDescription = "Izađi", 
-                    tint = MaterialTheme.colorScheme.onBackground
-                ) 
-            }
-            LinearProgressIndicator(
-                progress = progress, 
-                modifier = Modifier
-                    .weight(1f)
-                    .height(4.dp), 
-                color = GoldBase, 
-                trackColor = BlueMidnight
-            )
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 24.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { showExitDialog = true }) { Icon(imageVector = Icons.Default.Close, contentDescription = "Изађи", tint = MaterialTheme.colorScheme.onBackground) }
+            LinearProgressIndicator(progress = progress, modifier = Modifier.weight(1f).height(4.dp), color = GoldBase, trackColor = BlueMidnight)
         }
 
-        if (isLoading) { 
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) 
-        } else {
-            AnimatedContent(
-                targetState = Pair(currentIndex, currentStep), 
-                transitionSpec = { 
-                    // ИСПРАВКА: Поново користимо опцију из подешавања!
-                    getCardTransition(
-                        type = settings.cardAnimation, 
-                        isForward = targetState.first > initialState.first
-                    ) 
-                }, 
-                label = "ScreenTransition", 
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) { (index, step) ->
-                when (step) {
-                    is LessonStep.Theory -> TheoryStepScreen(
-                        step = step, 
-                        lessonId = lesson!!.id, 
-                        lessonTitle = lesson!!.title, 
-                        symbol = lesson!!.symbol
-                    )
-                    is LessonStep.ImageInfo -> ImageInfoStepScreen(
-                        step = step
-                    )
-                    is LessonStep.Quiz -> QuizStepScreen(
-                        step = step, 
-                        onActionComplete = { viewModel.markStepAsCompleted(index) }, 
-                        onAutoAdvance = handleNextStep
-                    )
-                    is LessonStep.Example -> ExampleStepScreen(
-                        step = step, 
-                        lessonId = lesson!!.id, 
-                        symbol = lesson!!.symbol, 
-                        onActionComplete = { viewModel.markStepAsCompleted(index) }
-                    )
-                }
+        AnimatedContent(
+            targetState = currentIndex, 
+            transitionSpec = { 
+                getCardTransition(type = settings.cardAnimation, isForward = targetState > initialState) 
+            }, 
+            label = "ScreenTransition", 
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) { index ->
+            val step = steps[index]
+            when (step) {
+                is LessonStep.Theory -> TheoryStepScreen(step = step, lessonId = lesson!!.id, lessonTitle = lesson!!.title, symbol = lesson!!.symbol)
+                is LessonStep.ImageInfo -> ImageInfoStepScreen(step = step)
+                is LessonStep.Quiz -> QuizStepScreen(step = step, onActionComplete = { viewModel.markStepAsCompleted(index) }, onAutoAdvance = handleNextStep)
+                is LessonStep.Example -> ExampleStepScreen(step = step, lessonId = lesson!!.id, symbol = lesson!!.symbol, onActionComplete = { viewModel.markStepAsCompleted(index) })
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp), 
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Button(
-                onClick = handlePrevStep, 
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp), 
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) { 
-                Text(
-                    text = "Nazad".asScript(), 
-                    color = MaterialTheme.colorScheme.onSurface, 
-                    fontSize = 16.sp, 
-                    fontFamily = cyrillicFont
-                ) 
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Button(onClick = handlePrevStep, modifier = Modifier.weight(1f).height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) { 
+                Text(text = "Назад".asScript(), color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = cyrillicFont) 
             }
-            
-            GoldenWireButton(
-                onClick = handleNextStep, 
-                text = if (currentIndex == steps.size - 1) "Završi".asScript() else "Dalje".asScript(), 
-                font = cyrillicFont, 
-                fontWeight = FontWeight.Normal, 
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp), 
-                enabled = isNextEnabled
-            )
+            GoldenWireButton(onClick = handleNextStep, text = if (currentIndex == steps.size - 1) "Заврши".asScript() else "Даље".asScript(), font = cyrillicFont, fontWeight = FontWeight.Normal, modifier = Modifier.weight(1f).height(56.dp), enabled = isNextEnabled)
         }
     }
 }-e 
@@ -2221,33 +2107,38 @@ package com.dino.sufara.feature.lesson.presentation.viewer.animations
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.unit.IntOffset
 
 enum class CardAnimationType { SLIDE, SCALE_FADE, TILT_SLIDE, FADE }
 
+@OptIn(ExperimentalAnimationApi::class)
 fun getCardTransition(type: CardAnimationType, isForward: Boolean): ContentTransform {
     val duration = 400
     val easing = FastOutSlowInEasing
     
+    val enterOffset = if (isForward) 1200 else -1200
+    val exitOffset = if (isForward) -1200 else 1200
+    
     return when (type) {
         CardAnimationType.SLIDE -> {
-            (slideInHorizontally(tween(duration, easing = easing)) { if (isForward) it else -it } + 
-            fadeIn(tween(duration))) togetherWith 
-            (slideOutHorizontally(tween(duration, easing = easing)) { if (isForward) -it else it } + 
-            fadeOut(tween(duration)))
+            (slideInHorizontally(tween(duration, easing = easing)) { enterOffset } + 
+             fadeIn(tween(duration))) togetherWith 
+            (slideOutHorizontally(tween(duration, easing = easing)) { exitOffset } + 
+             fadeOut(tween(duration)))
         }
         CardAnimationType.SCALE_FADE -> {
             (scaleIn(tween(duration, easing = easing), initialScale = 0.8f) + 
-            fadeIn(tween(duration))) togetherWith 
+             fadeIn(tween(duration))) togetherWith 
             (scaleOut(tween(duration, easing = easing), targetScale = 0.8f) + 
-            fadeOut(tween(duration)))
+             fadeOut(tween(duration)))
         }
         CardAnimationType.TILT_SLIDE -> {
-            (slideInHorizontally(tween(duration, easing = easing)) { if (isForward) it / 2 else -it / 2 } + 
-            scaleIn(tween(duration, easing = easing), initialScale = 0.9f) + 
-            fadeIn(tween(duration))) togetherWith 
-            (slideOutHorizontally(tween(duration, easing = easing)) { if (isForward) -it / 2 else it / 2 } + 
-            scaleOut(tween(duration, easing = easing), targetScale = 0.9f) + 
-            fadeOut(tween(duration)))
+            (slideInHorizontally(tween(duration, easing = easing)) { enterOffset / 2 } + 
+             scaleIn(tween(duration, easing = easing), initialScale = 0.85f) + 
+             fadeIn(tween(duration))) togetherWith 
+            (slideOutHorizontally(tween(duration, easing = easing)) { exitOffset / 2 } + 
+             scaleOut(tween(duration, easing = easing), targetScale = 0.85f) + 
+             fadeOut(tween(duration)))
         }
         CardAnimationType.FADE -> {
             fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))

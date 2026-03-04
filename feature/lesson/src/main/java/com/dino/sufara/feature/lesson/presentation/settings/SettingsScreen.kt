@@ -17,7 +17,7 @@ import com.dino.sufara.feature.lesson.presentation.viewer.components.SufaraText
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
-    onUnlockExpertMode: () -> Unit // НОВО: Директна акција из NavGraph-a
+    onUnlockExpertMode: () -> Unit
 ) { 
     val settings = LocalSufaraSettings.current
     val actions = LocalSufaraSettingsActions.current
@@ -30,26 +30,27 @@ fun SettingsScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Nazad".asScript(), tint = MaterialTheme.colorScheme.onBackground)
+                Icon(Icons.Default.ArrowBack, contentDescription = "Назад".asScript(), tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Podešavanja".asScript(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+            Text("Подешавања".asScript(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
         }
         Spacer(modifier = Modifier.height(24.dp))
 
         // ПИСМО
-        Text("Pismo".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Писмо".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !settings.isCyrillic, onClick = { actions.updateScript(false) }, label = { Text("Latinica") })
-            FilterChip(selected = settings.isCyrillic, onClick = { actions.updateScript(true) }, label = { Text("Ćirilica".asScript()) })
+            // Латиница се не преводи преко .asScript() јер нема смисла, али Ћирилица да.
+            FilterChip(selected = !settings.isCyrillic, onClick = { actions.updateScript(false) }, label = { Text("Латиница".asScript()) })
+            FilterChip(selected = settings.isCyrillic, onClick = { actions.updateScript(true) }, label = { Text("Ћирилица".asScript()) })
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // ФОНТ ЗА ТЕКСТ
-        Text("Font za tekst".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Фонт за текст".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -58,13 +59,13 @@ fun SettingsScreen(
             }
         }
         
-        Text("Veličina: ".asScript() + "${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
+        Text("Величина: ".asScript() + "${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
         Slider(value = settings.cyrillicSizeMultiplier, onValueChange = { actions.updateCyrillicSize(it) }, valueRange = 0.6f..1.5f)
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // АРАПСКИ ФОНТ
-        Text("Arapski".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Арапски".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -75,47 +76,47 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // LIVE ПРЕВЈУ (Сада је испод фонтова и има неутралан текст)
+        // LIVE ПРЕВЈУ
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Prikaz uživo:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Text("Приказ уживо:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(8.dp))
-                SufaraText(text = "Ovo je tekst.\nA ovo je arapski primer:\nكِتَابٌ مُفِيدٌ".asScript())
+                SufaraText(text = "Ово је текст.\nА ово је арапски пример:\nكِتَابٌ مُفِيدٌ".asScript())
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // ОПЦИЈЕ ПРИКАЗА
-        Text("Opcije prikaza".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Опције приказа".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Prikaži transkripciju (IPA)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Text("Приказ транскрипције (IPA)".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Switch(checked = settings.showIpa, onCheckedChange = { actions.toggleIpa(it) })
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Prikaži razdvojena slova".asScript(), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+            Text("Приказ раздвојених слова".asScript(), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
             Switch(checked = settings.showSeparatedLetters, onCheckedChange = { actions.toggleSeparatedLetters(it) })
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // РАЗВОЈ (ЕКСПЕРТ МОД)
-        Text("Razvoj i testiranje".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Развој и тестирање".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Ekspert Mod (Završi sve)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Text("Експерт Мод (Заврши све)".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Button(
-                onClick = { onUnlockExpertMode() }, // Позивамо функцију која окида базу!
+                onClick = { onUnlockExpertMode() },
                 enabled = !settings.isExpertModeUnlocked,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text(if (settings.isExpertModeUnlocked) "OTKLJUČANO".asScript() else "OTKLJUČAJ".asScript())
+                Text(if (settings.isExpertModeUnlocked) "ОТКЉУЧАНО".asScript() else "ОТКЉУЧАЈ".asScript())
             }
         }
         Spacer(modifier = Modifier.height(48.dp))

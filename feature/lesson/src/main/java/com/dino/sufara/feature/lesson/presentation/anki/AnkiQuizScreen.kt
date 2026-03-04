@@ -40,32 +40,31 @@ fun AnkiQuizScreen(viewModel: AnkiQuizViewModel, onNavigateBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // --- HEADER ---
         Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 24.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onNavigateBack) { Icon(Icons.Default.Close, contentDescription = "Zatvori", tint = MaterialTheme.colorScheme.onBackground) }
+            IconButton(onClick = onNavigateBack) { Icon(Icons.Default.Close, contentDescription = "Затвори".asScript(), tint = MaterialTheme.colorScheme.onBackground) }
             Spacer(modifier = Modifier.width(8.dp))
             if (!isLoading && remainingCount > 0) {
-                Text(text = "Preostalo: $remainingCount".asScript(), color = GoldBase, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
+                Text(text = "Преостало: $remainingCount".asScript(), color = GoldBase, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
             }
         }
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GoldBase) }
         } else if (currentQuestion == null) {
-            // --- EDGE CASE: SVE JE ZAVRŠENO ---
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                     Text(text = "🎉", fontSize = 64.sp, modifier = Modifier.padding(bottom = 16.dp))
                     Text(
-                        text = "Sve si ponovio za danas!".asScript(),
+                        text = "Успешно сте обновили градиво!".asScript(),
                         fontFamily = cyrillicFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = GoldBase, textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Tvoj mozak sada konsoliduje znanje. Otključaj nove lekcije ili se odmori.".asScript(),
+                        text = "Сва доспела питања су решена. Можете наставити са учењем нових лекција.".asScript(),
                         fontFamily = cyrillicFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(48.dp))
                     Button(onClick = onNavigateBack, colors = ButtonDefaults.buttonColors(containerColor = BlueMidnight)) {
-                        Text("Nazad na glavni meni".asScript(), color = GoldBase, modifier = Modifier.padding(8.dp))
+                        Text("Назад на главни мени".asScript(), color = GoldBase, modifier = Modifier.padding(8.dp))
                     }
                 }
             }
@@ -80,7 +79,6 @@ fun AnkiQuizScreen(viewModel: AnkiQuizViewModel, onNavigateBack: () -> Unit) {
                 val scope = rememberCoroutineScope()
 
                 AnimatedContent(targetState = quiz, transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) }, label = "anki_anim") { _ ->
-                    // ИСПРАВКА ПАДИНГА: Користимо start, end и top
                     Column(modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 24.dp), verticalArrangement = Arrangement.Top) {
                         
                         SufaraText(text = quiz.question, modifier = Modifier.padding(bottom = 32.dp))
@@ -116,7 +114,7 @@ fun AnkiQuizScreen(viewModel: AnkiQuizViewModel, onNavigateBack: () -> Unit) {
                                 attemptCount++ 
                             }) {
                                 Text(
-                                    text = "Dodirni bilo gde za ponovni pokušaj".asScript(),
+                                    text = "Додирните било где за поновни покушај".asScript(),
                                     color = Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.align(Alignment.Center).padding(top = 32.dp)
                                 )
