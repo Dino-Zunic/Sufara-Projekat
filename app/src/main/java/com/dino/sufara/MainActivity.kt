@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.room.Room
 import com.dino.sufara.core.designsystem.SufaraTheme
-// ИСПРАВКА: Нова путања до базе
 import com.dino.sufara.feature.lesson.data.local.AppDatabase
 import com.dino.sufara.feature.lesson.data.repository.LocalAssetLessonRepository
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraSettingsProvider
@@ -21,6 +20,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen() 
         super.onCreate(savedInstanceState)
         
+        applicationContext.deleteDatabase("sufara_database")
+
         val database = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,

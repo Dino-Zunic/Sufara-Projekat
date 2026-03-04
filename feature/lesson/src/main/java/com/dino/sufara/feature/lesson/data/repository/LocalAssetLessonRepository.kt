@@ -123,4 +123,30 @@ class LocalAssetLessonRepository(
             listOf("Учи у име Господара твога који ствара...") 
         }
     }
+
+    override suspend fun completeLessonAndUnlockNext(currentLessonId: String) {
+        withContext(Dispatchers.IO) {
+            // 1. Означи тренутну лекцију као завршену
+            dao.updateLessonProgress(LessonProgressEntity(currentLessonId, LessonStatus.COMPLETED, System.currentTimeMillis()))
+            
+            // 2. Пронађи следећу лекцију и откључај је (ако већ није откључана/завршена)
+            val allLessons = getAllLessons()
+            val currentIndex = allLessons.indexOfFirst { it.id == currentLessonId }
+            if (currentIndex != -1 && currentIndex < allLessons.size - 1) {
+                val nextLesson = allLessons[currentIndex + 1]
+                if (nextLesson.status == LessonStatus.LOCKED) {
+                    dao.updateLessonProgress(LessonProgressEntity(nextLesson.id, LessonStatus.UNLOCKED))
+                }
+            }
+        }
+    }
+
+    override suspend fun unlockAllLessons() {
+        withContext(Dispatchers.IO) {
+            val allLessons = getAllLessons()
+            allLessons.forEach { lesson ->
+                dao.updateLessonProgress(LessonProgressEntity(lesson.id, LessonStatus.COMPLETED, System.currentTimeMillis()))
+            }
+        }
+    }
 }

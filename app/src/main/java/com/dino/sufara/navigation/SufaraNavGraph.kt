@@ -1,7 +1,9 @@
 package com.dino.sufara.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -20,14 +22,23 @@ fun SufaraNavGraph(repository: LessonRepository) {
     NavHost(navController = navController, startDestination = "main_menu") {
         composable("main_menu") {
             MainMenuScreen(
-                repository = repository, // НОВО: Прослеђујемо репозиторијум
+                repository = repository,
                 onStartClick = { navController.navigate("lesson_grid") },
                 onSettingsClick = { navController.navigate("settings") }
             )
         }
         
-        // RUTA ZA PODEŠAVANJA
         composable("settings") {
+            val scope = rememberCoroutineScope()
+            val actions = com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettingsActions.current
+            val settings = com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings.current
+            
+            LaunchedEffect(settings.isExpertModeUnlocked) {
+                if (settings.isExpertModeUnlocked) {
+                    repository.unlockAllLessons()
+                }
+            }
+
             SettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
 

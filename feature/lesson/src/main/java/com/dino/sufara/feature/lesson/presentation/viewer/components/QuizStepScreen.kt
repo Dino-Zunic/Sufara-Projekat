@@ -15,10 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun QuizStepScreen(
-    step: LessonStep.Quiz,
-    onAutoAdvance: () -> Unit // Аутоматски иде даље ако погоди
-) {
+fun QuizStepScreen(step: LessonStep.Quiz, onActionComplete: () -> Unit, onAutoAdvance: () -> Unit) {
     var attemptCount by remember { mutableIntStateOf(0) }
 
     key(step.id, attemptCount) { 
@@ -26,7 +23,13 @@ fun QuizStepScreen(
         var selectedAnswer by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp), verticalArrangement = Arrangement.Center) {
+        // ИСПРАВКА: Користимо start, end и top уместо horizontal и top
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 24.dp, end = 24.dp, top = 48.dp), 
+            verticalArrangement = Arrangement.Top
+        ) {
             SufaraText(text = step.question, modifier = Modifier.padding(bottom = 32.dp))
 
             shuffledAnswers.forEach { answer ->
@@ -35,22 +38,19 @@ fun QuizStepScreen(
                 val hasAnswered = selectedAnswer != null
 
                 val containerColor = when {
-                    hasAnswered && isCorrect -> Color(0xFF4CAF50) // Зелено за тачно
-                    hasAnswered && isSelected && !isCorrect -> MaterialTheme.colorScheme.error // Црвено за погрешно
+                    hasAnswered && isCorrect -> Color(0xFF4CAF50) 
+                    hasAnswered && isSelected && !isCorrect -> MaterialTheme.colorScheme.error 
                     else -> MaterialTheme.colorScheme.surface
                 }
 
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .clickable(enabled = !hasAnswered) {
-                            selectedAnswer = answer
-                            if (answer == step.correctAnswer) {
-                                // Када погоди, чекамо 1 секунду да види зелено поље, па идемо даље
-                                scope.launch { delay(1000); onAutoAdvance() } 
-                            }
-                        },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).clickable(enabled = !hasAnswered) {
+                        selectedAnswer = answer
+                        if (answer == step.correctAnswer) {
+                            onActionComplete()
+                            scope.launch { delay(1000); onAutoAdvance() } 
+                        }
+                    },
                     colors = CardDefaults.cardColors(containerColor = containerColor)
                 ) {
                     SufaraText(text = answer, modifier = Modifier.padding(16.dp))

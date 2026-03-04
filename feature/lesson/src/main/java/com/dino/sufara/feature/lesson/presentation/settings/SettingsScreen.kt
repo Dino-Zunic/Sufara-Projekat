@@ -134,13 +134,18 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         }
         Spacer(modifier = Modifier.height(32.dp))
 
-        Text("Razvoj".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Развој и тестирање".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Debug Mod (Preskakanje kviza)".asScript(), color = MaterialTheme.colorScheme.onBackground)
-            Switch(checked = settings.isDebugMode, onCheckedChange = { actions.toggleDebugMode(it) })
+            Text("Експерт Мод (Откључај све)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Button(
+                onClick = { actions.unlockExpertMode() },
+                enabled = !settings.isExpertModeUnlocked,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text(if (settings.isExpertModeUnlocked) "ОТКЉУЧАНО".asScript() else "ОТКЉУЧАЈ".asScript())
+            }
         }
-        Spacer(modifier = Modifier.height(48.dp))
     }
 }

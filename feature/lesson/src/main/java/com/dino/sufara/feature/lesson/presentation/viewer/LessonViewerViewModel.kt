@@ -19,27 +19,38 @@ class LessonViewerViewModel(
     private val _currentIndex = MutableStateFlow(0)
     val currentIndex = _currentIndex.asStateFlow()
 
+    private val _completedSteps = MutableStateFlow<Set<Int>>(emptySet())
+    val completedSteps = _completedSteps.asStateFlow()
+
     init {
         viewModelScope.launch {
-            // Убацујемо пун назив фолдера за претрагу
             val folders = repository.getAllLessons()
             val fullLesson = folders.find { it.id == lessonId }
             _lesson.value = repository.getLessonById(fullLesson?.id + " " + fullLesson?.title)
         }
     }
 
+    fun markStepAsCompleted(index: Int) {
+        _completedSteps.value = _completedSteps.value + index
+    }
+
     fun nextStep() {
         val currentLesson = _lesson.value ?: return
         if (_currentIndex.value < currentLesson.steps.size - 1) {
             _currentIndex.value++
-        } else {
-            // Овде ћемо касније додати логику за завршетак лекције
         }
     }
 
     fun previousStep() {
         if (_currentIndex.value > 0) {
             _currentIndex.value--
+        }
+    }
+    
+    fun finishLesson(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.completeLessonAndUnlockNext(lessonId)
+            onComplete()
         }
     }
 }

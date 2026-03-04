@@ -33,15 +33,15 @@ fun GoldenWireButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     font: FontFamily = FontFamily.Default,
+    fontWeight: FontWeight = FontWeight.Bold,
     wireThickness: Dp = 1.dp, 
     animDuration: Int = 3500, 
-    baseAlpha: Float = 0.5f // Базна светлост жице (50%)
+    baseAlpha: Float = 0.5f,
+    enabled: Boolean = true
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "wire_anim")
     val wireEasing = Easing { fraction ->
-        val linear = fraction
-        val smooth = fraction * fraction * (3 - 2 * fraction)
-        (linear * 0.4f) + (smooth * 0.6f)
+        val linear = fraction; val smooth = fraction * fraction * (3 - 2 * fraction); (linear * 0.4f) + (smooth * 0.6f)
     }
 
     val angle by infiniteTransition.animateFloat(
@@ -50,24 +50,33 @@ fun GoldenWireButton(
         label = "angle"
     )
 
-    val baseGold = GoldBase.copy(alpha = baseAlpha)
-    val borderGradient = remember(baseGold) {
-        Brush.sweepGradient(0.0f to baseGold, 0.6f to baseGold, 0.95f to GoldLight, 1.0f to baseGold)
+    val baseGold = if (enabled) GoldBase.copy(alpha = baseAlpha) else Color.Gray.copy(alpha = 0.2f)
+    val highlightGold = if (enabled) GoldLight else Color.Gray.copy(alpha = 0.3f)
+    
+    val borderGradient = remember(baseGold, highlightGold) {
+        Brush.sweepGradient(0.0f to baseGold, 0.6f to baseGold, 0.95f to highlightGold, 1.0f to baseGold)
     }
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(32.dp))
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .drawBehind {
-                rotate(angle) { drawCircle(brush = borderGradient, radius = size.width, center = Offset(size.width / 2, size.height / 2)) }
+                val currentAngle = if (enabled) angle else 0f
+                rotate(currentAngle) { drawCircle(brush = borderGradient, radius = size.width, center = Offset(size.width / 2, size.height / 2)) }
             }
             .padding(wireThickness)
             .background(BlueMidnight, RoundedCornerShape(30.dp))
-            // ИСПРАВКА: Уклоњен fillMaxHeight() одавде!
             .padding(horizontal = 32.dp, vertical = 16.dp), 
         contentAlignment = Alignment.Center
     ) {
-        Text(text = text, color = TextParchment, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = font, letterSpacing = 2.sp)
+        Text(
+            text = text, 
+            color = if (enabled) TextParchment else TextParchment.copy(alpha = 0.3f), 
+            fontSize = 16.sp, 
+            fontWeight = fontWeight,
+            fontFamily = font, 
+            letterSpacing = 2.sp
+        )
     }
 }

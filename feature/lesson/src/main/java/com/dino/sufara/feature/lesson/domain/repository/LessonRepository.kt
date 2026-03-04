@@ -6,4 +6,6 @@ interface LessonRepository {
     suspend fun getAllLessons(): List<Lesson>
     suspend fun getLessonById(id: String): Lesson?
     suspend fun getFunFacts(): List<String>
+    suspend fun completeLessonAndUnlockNext(currentLessonId: String)
+    suspend fun unlockAllLessons()
 }

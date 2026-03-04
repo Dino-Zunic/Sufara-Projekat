@@ -35,7 +35,7 @@ import com.dino.sufara.feature.lesson.presentation.viewer.components.renderers.R
 import kotlinx.coroutines.launch
 
 @Composable
-fun ExampleStepScreen(step: LessonStep.Example, lessonId: String, symbol: String) {
+fun ExampleStepScreen(step: LessonStep.Example, lessonId: String, symbol: String, onActionComplete: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val settings = LocalSufaraSettings.current
     val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
@@ -78,6 +78,7 @@ fun ExampleStepScreen(step: LessonStep.Example, lessonId: String, symbol: String
         Card(
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).clickable(interactionSource = interactionSource, indication = null) { 
                 if (!isPlaying) {
+                    onActionComplete()
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     scope.launch { SoundSimulator.playMockSound(onStart = { isPlaying = true }, onEnd = { isPlaying = false }) }
                 }
