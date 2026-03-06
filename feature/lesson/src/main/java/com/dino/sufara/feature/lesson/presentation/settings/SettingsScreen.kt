@@ -110,7 +110,7 @@ fun SettingsScreen(
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Експерт Мод (Заврши све)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Text("Експерт Мод".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Button(
                 onClick = { onUnlockExpertMode() },
                 enabled = !settings.isExpertModeUnlocked,

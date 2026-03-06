@@ -1,4 +1,4 @@
-IZVEŠTAJ O PROJEKTU - Wed 04 Mar 2026 10:07:02 PM CET
+IZVEŠTAJ O PROJEKTU - Wed 04 Mar 2026 10:46:58 PM CET
 ================================================================================
 PUTANJA: ./feature/lesson/src/main/java/com/dino/sufara/feature/lesson/data/repository/LocalAssetLessonRepository.kt
 ================================================================================
@@ -1337,7 +1337,6 @@ fun QuizStepScreen(step: LessonStep.Quiz, onActionComplete: () -> Unit, onAutoAd
         var selectedAnswer by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
-        // ИСПРАВКА: Користимо start, end и top уместо horizontal и top
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1379,7 +1378,7 @@ fun QuizStepScreen(step: LessonStep.Quiz, onActionComplete: () -> Unit, onAutoAd
                     }
                 ) {
                     Text(
-                        text = "Додирни било где за поновни покушај".asScript(),
+                        text = "Додирните било где за поновни покушај".asScript(),
                         color = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.align(Alignment.Center).padding(top = 32.dp)
                     )
@@ -1460,9 +1459,9 @@ fun TheoryStepScreen(step: LessonStep.Theory, lessonId: String, lessonTitle: Str
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth().clickable { isDodatakExpanded = !isDodatakExpanded }) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.secondary)
+                        Icon(Icons.Default.Info, contentDescription = "Инфо", tint = MaterialTheme.colorScheme.secondary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Zanimljivosti (Klikni da otvoriš)".asScript(), color = MaterialTheme.colorScheme.secondary)
+                        Text("Занимљивости".asScript(), color = MaterialTheme.colorScheme.secondary)
                     }
                     AnimatedVisibility(visible = isDodatakExpanded) {
                         Column { Spacer(modifier = Modifier.height(16.dp)); SufaraText(text = step.dodatakText, lessonId = lessonId, symbol = symbol) }
@@ -2277,32 +2276,31 @@ fun AnkiQuizScreen(viewModel: AnkiQuizViewModel, onNavigateBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // --- HEADER ---
         Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 24.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onNavigateBack) { Icon(Icons.Default.Close, contentDescription = "Zatvori", tint = MaterialTheme.colorScheme.onBackground) }
+            IconButton(onClick = onNavigateBack) { Icon(Icons.Default.Close, contentDescription = "Затвори".asScript(), tint = MaterialTheme.colorScheme.onBackground) }
             Spacer(modifier = Modifier.width(8.dp))
             if (!isLoading && remainingCount > 0) {
-                Text(text = "Preostalo: $remainingCount".asScript(), color = GoldBase, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
+                Text(text = "Преостало: $remainingCount".asScript(), color = GoldBase, fontFamily = cyrillicFont, fontWeight = FontWeight.Bold)
             }
         }
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GoldBase) }
         } else if (currentQuestion == null) {
-            // --- EDGE CASE: SVE JE ZAVRŠENO ---
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                     Text(text = "🎉", fontSize = 64.sp, modifier = Modifier.padding(bottom = 16.dp))
                     Text(
-                        text = "Sve si ponovio za danas!".asScript(),
+                        text = "Успешно сте обновили градиво!".asScript(),
                         fontFamily = cyrillicFont, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = GoldBase, textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Tvoj mozak sada konsoliduje znanje. Otključaj nove lekcije ili se odmori.".asScript(),
+                        text = "Сва доспела питања су решена. Можете наставити са учењем нових лекција.".asScript(),
                         fontFamily = cyrillicFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(48.dp))
                     Button(onClick = onNavigateBack, colors = ButtonDefaults.buttonColors(containerColor = BlueMidnight)) {
-                        Text("Nazad na glavni meni".asScript(), color = GoldBase, modifier = Modifier.padding(8.dp))
+                        Text("Назад на главни мени".asScript(), color = GoldBase, modifier = Modifier.padding(8.dp))
                     }
                 }
             }
@@ -2317,7 +2315,6 @@ fun AnkiQuizScreen(viewModel: AnkiQuizViewModel, onNavigateBack: () -> Unit) {
                 val scope = rememberCoroutineScope()
 
                 AnimatedContent(targetState = quiz, transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) }, label = "anki_anim") { _ ->
-                    // ИСПРАВКА ПАДИНГА: Користимо start, end и top
                     Column(modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 24.dp), verticalArrangement = Arrangement.Top) {
                         
                         SufaraText(text = quiz.question, modifier = Modifier.padding(bottom = 32.dp))
@@ -2353,7 +2350,7 @@ fun AnkiQuizScreen(viewModel: AnkiQuizViewModel, onNavigateBack: () -> Unit) {
                                 attemptCount++ 
                             }) {
                                 Text(
-                                    text = "Dodirni bilo gde za ponovni pokušaj".asScript(),
+                                    text = "Додирните било где за поновни покушај".asScript(),
                                     color = Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.align(Alignment.Center).padding(top = 32.dp)
                                 )
@@ -2774,7 +2771,7 @@ import com.dino.sufara.feature.lesson.presentation.viewer.components.SufaraText
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
-    onUnlockExpertMode: () -> Unit // НОВО: Директна акција из NavGraph-a
+    onUnlockExpertMode: () -> Unit
 ) { 
     val settings = LocalSufaraSettings.current
     val actions = LocalSufaraSettingsActions.current
@@ -2787,26 +2784,27 @@ fun SettingsScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Nazad".asScript(), tint = MaterialTheme.colorScheme.onBackground)
+                Icon(Icons.Default.ArrowBack, contentDescription = "Назад".asScript(), tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Podešavanja".asScript(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+            Text("Подешавања".asScript(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
         }
         Spacer(modifier = Modifier.height(24.dp))
 
         // ПИСМО
-        Text("Pismo".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Писмо".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !settings.isCyrillic, onClick = { actions.updateScript(false) }, label = { Text("Latinica") })
-            FilterChip(selected = settings.isCyrillic, onClick = { actions.updateScript(true) }, label = { Text("Ćirilica".asScript()) })
+            // Латиница се не преводи преко .asScript() јер нема смисла, али Ћирилица да.
+            FilterChip(selected = !settings.isCyrillic, onClick = { actions.updateScript(false) }, label = { Text("Латиница".asScript()) })
+            FilterChip(selected = settings.isCyrillic, onClick = { actions.updateScript(true) }, label = { Text("Ћирилица".asScript()) })
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // ФОНТ ЗА ТЕКСТ
-        Text("Font za tekst".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Фонт за текст".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2815,13 +2813,13 @@ fun SettingsScreen(
             }
         }
         
-        Text("Veličina: ".asScript() + "${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
+        Text("Величина: ".asScript() + "${(settings.cyrillicSizeMultiplier * 100).toInt()}%", color = MaterialTheme.colorScheme.onBackground)
         Slider(value = settings.cyrillicSizeMultiplier, onValueChange = { actions.updateCyrillicSize(it) }, valueRange = 0.6f..1.5f)
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // АРАПСКИ ФОНТ
-        Text("Arapski".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Арапски".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2832,47 +2830,47 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // LIVE ПРЕВЈУ (Сада је испод фонтова и има неутралан текст)
+        // LIVE ПРЕВЈУ
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Prikaz uživo:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Text("Приказ уживо:".asScript(), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(8.dp))
-                SufaraText(text = "Ovo je tekst.\nA ovo je arapski primer:\nكِتَابٌ مُفِيدٌ".asScript())
+                SufaraText(text = "Ово је текст.\nА ово је арапски пример:\nكِتَابٌ مُفِيدٌ".asScript())
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // ОПЦИЈЕ ПРИКАЗА
-        Text("Opcije prikaza".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Опције приказа".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Prikaži transkripciju (IPA)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Text("Приказ транскрипције (IPA)".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Switch(checked = settings.showIpa, onCheckedChange = { actions.toggleIpa(it) })
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Prikaži razdvojena slova".asScript(), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+            Text("Приказ раздвојених слова".asScript(), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
             Switch(checked = settings.showSeparatedLetters, onCheckedChange = { actions.toggleSeparatedLetters(it) })
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
         // РАЗВОЈ (ЕКСПЕРТ МОД)
-        Text("Razvoj i testiranje".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+        Text("Развој и тестирање".asScript(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Ekspert Mod (Završi sve)".asScript(), color = MaterialTheme.colorScheme.onBackground)
+            Text("Експерт Мод".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Button(
-                onClick = { onUnlockExpertMode() }, // Позивамо функцију која окида базу!
+                onClick = { onUnlockExpertMode() },
                 enabled = !settings.isExpertModeUnlocked,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text(if (settings.isExpertModeUnlocked) "OTKLJUČANO".asScript() else "OTKLJUČAJ".asScript())
+                Text(if (settings.isExpertModeUnlocked) "ОТКЉУЧАНО".asScript() else "ОТКЉУЧАЈ".asScript())
             }
         }
         Spacer(modifier = Modifier.height(48.dp))
