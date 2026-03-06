@@ -113,10 +113,10 @@ fun SettingsScreen(
             Text("Експерт Мод".asScript(), color = MaterialTheme.colorScheme.onBackground)
             Button(
                 onClick = { onUnlockExpertMode() },
-                enabled = !settings.isExpertModeUnlocked,
+                // Дугме је сада увек омогућено
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text(if (settings.isExpertModeUnlocked) "ОТКЉУЧАНО".asScript() else "ОТКЉУЧАЈ".asScript())
+                Text("ОТКЉУЧАЈ СВЕ".asScript())
             }
         }
         Spacer(modifier = Modifier.height(48.dp))

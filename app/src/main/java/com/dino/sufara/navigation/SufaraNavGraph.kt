@@ -33,15 +33,13 @@ fun SufaraNavGraph(repository: LessonRepository) {
         
         composable("settings") {
             val scope = rememberCoroutineScope()
-            val actions = com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettingsActions.current
             
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onUnlockExpertMode = {
                     scope.launch { 
-                        repository.unlockAllLessons() 
+                        repository.unlockAllLessons()
                     }
-                    actions.unlockExpertMode()
                 }
             )
         }
