@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -32,8 +31,6 @@ import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
 @Composable
 fun HarfShowcase(symbol: String) {
     val settings = LocalSufaraSettings.current
-    val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
-    
     val bodyColor = when(settings.bodyTextColorTheme) {
         BodyTextColorTheme.PARCHMENT -> TextParchment
         BodyTextColorTheme.SILVER -> TextSilver
@@ -47,16 +44,16 @@ fun HarfShowcase(symbol: String) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp, top = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (isNonConnecting) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                HarfFormItem(text = "$tatweel$symbol", label = "спојено", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 110.sp)
-                HarfFormItem(text = symbol, label = "одвојено", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 110.sp)
+                HarfFormItem(text = "$tatweel$symbol", label = "спојено", color = GoldBase, bodyColor = bodyColor, fontSize = 110.sp)
+                HarfFormItem(text = symbol, label = "одвојено", color = GoldBase, bodyColor = bodyColor, fontSize = 110.sp)
             }
         } else {
-            HarfFormItem(text = symbol, label = "самостално", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 140.sp, shadow = Shadow(color = GoldBase.copy(alpha = 0.5f), blurRadius = 20f))
+            HarfFormItem(text = symbol, label = "самостално", color = GoldBase, bodyColor = bodyColor, fontSize = 140.sp, shadow = Shadow(color = GoldBase.copy(alpha = 0.5f), blurRadius = 20f))
             Spacer(modifier = Modifier.height(32.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                HarfFormItem(text = "$tatweel$symbol", label = "на крају", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
-                HarfFormItem(text = "$tatweel$symbol$tatweel", label = "у средини", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
-                HarfFormItem(text = "$symbol$tatweel", label = "на почетку", font = arabicFont, color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
+                HarfFormItem(text = "$tatweel$symbol", label = "на крају", color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
+                HarfFormItem(text = "$tatweel$symbol$tatweel", label = "у средини", color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
+                HarfFormItem(text = "$symbol$tatweel", label = "на почетку", color = GoldBase, bodyColor = bodyColor, fontSize = 65.sp)
             }
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -65,7 +62,7 @@ fun HarfShowcase(symbol: String) {
 }
 
 @Composable
-private fun HarfFormItem(text: String, label: String, font: FontFamily, color: Color, bodyColor: Color, fontSize: TextUnit, shadow: Shadow? = null) {
+private fun HarfFormItem(text: String, label: String, color: Color, bodyColor: Color, fontSize: TextUnit, shadow: Shadow? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
         TightHarfText(text = text, fontSize = fontSize, color = color, shadow = shadow)
         Text(text = label.asScript(), color = bodyColor.copy(alpha = 0.6f), fontSize = 12.sp, textAlign = TextAlign.Center, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))

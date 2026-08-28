@@ -20,3 +20,10 @@ data class QuizProgressEntity(
     val consecutiveCorrectAnswers: Int = 0,
     val easinessFactor: Float = 2.5f 
 )
+
+@Entity(tableName = "writing_progress")
+data class WritingProgressEntity(
+    @PrimaryKey val lessonId: String,
+    val status: LessonStatus = LessonStatus.LOCKED,
+    val completedAt: Long? = null
+)

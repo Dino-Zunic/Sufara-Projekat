@@ -15,4 +15,7 @@ val GoldLight = Color(0xFFFFF2B2)
 val GoldDark = Color(0xFFAA7900)
 
 val MoltenRed = Color(0xFFD63200)      // Ужарени харекет/харф
-val ErrorRed = Color(0xFF8B0000)       // За квиз
+val ErrorRed = Color(0xFF4A2025)       // Тамна подлога грешке
+val ErrorForeground = Color(0xFFFFA3A3)
+val SuccessContainer = Color(0xFF173A2B)
+val SuccessForeground = Color(0xFFA7E5B8)

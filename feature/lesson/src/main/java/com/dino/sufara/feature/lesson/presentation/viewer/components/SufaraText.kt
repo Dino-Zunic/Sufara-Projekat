@@ -156,16 +156,14 @@ fun SufaraText(
                 }
                 
                 is TextBlock.ExampleGroup -> {
-                    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 16.dp)) {
-                        val maxWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { maxWidth.toPx() }
+                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 16.dp)) {
                         var scaleMultiplier by remember(block.examples) { mutableFloatStateOf(1f) }
                         
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                            Row(
+                            FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                // ИСПРАВКА: SpaceEvenly прелепо распоређује елементе и гарантује празан простор између њих
-                                horizontalArrangement = Arrangement.SpaceEvenly, 
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 block.examples.forEach { exampleText ->
                                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {

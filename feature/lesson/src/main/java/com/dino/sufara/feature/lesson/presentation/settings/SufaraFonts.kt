@@ -33,4 +33,9 @@ object SufaraFonts {
             else -> ResourcesCompat.getFont(context, R.font.amiri_regular) ?: Typeface.DEFAULT
         }
     }
+
+    fun getCyrillicTypeface(context: Context, name: String): Typeface = when (name) {
+        "Roboto Slab" -> ResourcesCompat.getFont(context, R.font.roboto_slab_bold) ?: Typeface.DEFAULT
+        else -> ResourcesCompat.getFont(context, R.font.lora_bold) ?: Typeface.DEFAULT
+    }
 }

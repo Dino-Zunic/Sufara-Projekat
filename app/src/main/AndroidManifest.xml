@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Sufara"
-        android:theme="@style/Theme.App.Starting"> <activity
+        android:theme="@style/Theme.App.Starting">
+        <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.App.Starting">
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.App.Starting"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -14,14 +14,20 @@ class LessonGridViewModel(
 
     private val _lessons = MutableStateFlow<List<Lesson>>(emptyList())
     val lessons = _lessons.asStateFlow()
+    private val _writingUnlocked = MutableStateFlow(false)
+    val writingUnlocked = _writingUnlocked.asStateFlow()
+    private val _writingLessons = MutableStateFlow<List<Lesson>>(emptyList())
+    val writingLessons = _writingLessons.asStateFlow()
 
     init {
-        loadLessons()
+        refresh()
     }
 
-    private fun loadLessons() {
+    fun refresh() {
         viewModelScope.launch {
             _lessons.value = repository.getAllLessons()
+            _writingUnlocked.value = repository.isWritingUnlocked()
+            _writingLessons.value = repository.getWritingLessons()
         }
     }
 }

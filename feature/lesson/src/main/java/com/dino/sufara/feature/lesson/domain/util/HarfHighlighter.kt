@@ -10,6 +10,10 @@ sealed class HighlightAction {
 }
 
 object HarfHighlighter {
+    private val harakahLessonIds = setOf(
+        "001", "002", "006", "007", "008", "009", "010", "018",
+        "023", "024", "025", "026", "048"
+    )
     
     fun Char.isArabicDiacritic(): Boolean {
         return this in '\u0610'..'\u061A' || this in '\u064B'..'\u065F' || this == '\u0670'
@@ -19,7 +23,7 @@ object HarfHighlighter {
         SufaraLogger.log("--- АНАЛИЗА РЕЧИ: '$text' | Лекција: $lessonId | Симбол: '$symbol' ---")
 
         when (lessonId) {
-            "001", "002", "006", "007", "008" -> {
+            in harakahLessonIds -> {
                 val targets = mutableSetOf<Int>()
                 val supports = mutableSetOf<Int>()
                 
@@ -34,13 +38,34 @@ object HarfHighlighter {
                         text.forEachIndexed { i, c -> if (c in vowels) targets.add(i) }
                     }
                     "006" -> {
-                        text.forEachIndexed { i, c -> if (c == 'ٌ') targets.add(i) }
+                        val tanween = setOf('ً', 'ٌ', 'ٍ')
+                        text.forEachIndexed { i, c -> if (c in tanween) targets.add(i) }
                     }
                     "007" -> {
-                        text.forEachIndexed { i, c -> if (c == 'ٍ') targets.add(i) }
+                        text.forEachIndexed { i, c -> if (c == 'ٌ') targets.add(i) }
                     }
                     "008" -> {
+                        text.forEachIndexed { i, c -> if (c == 'ٍ') targets.add(i) }
+                    }
+                    "009" -> {
                         text.forEachIndexed { i, c -> if (c == 'ً') targets.add(i) }
+                    }
+                    "010" -> {
+                        text.forEachIndexed { i, c -> if (c == 'ْ') targets.add(i) }
+                    }
+                    "018" -> {
+                        text.forEachIndexed { i, c -> if (c == 'ّ') targets.add(i) }
+                    }
+                    "023" -> {
+                        addLongVowelTargets(text, targets, shortVowel = 'َ', longVowel = 'ا')
+                        addLongVowelTargets(text, targets, shortVowel = 'ِ', longVowel = 'ي')
+                        addLongVowelTargets(text, targets, shortVowel = 'ُ', longVowel = 'و')
+                    }
+                    "024" -> addLongVowelTargets(text, targets, shortVowel = 'َ', longVowel = 'ا')
+                    "025" -> addLongVowelTargets(text, targets, shortVowel = 'ِ', longVowel = 'ي')
+                    "026" -> addLongVowelTargets(text, targets, shortVowel = 'ُ', longVowel = 'و')
+                    "048" -> {
+                        text.forEachIndexed { i, c -> if (c == '\u0670') targets.add(i) }
                     }
                 }
 
@@ -51,7 +76,7 @@ object HarfHighlighter {
                     if (j >= 0) supports.add(j)
                 }
 
-                if (lessonId == "008") {
+                if (lessonId == "009") {
                     val elifs = listOf('ا', 'ى')
                     text.forEachIndexed { i, c ->
                         if (c in elifs && (targets.contains(i - 1) || targets.contains(i + 1))) {
@@ -95,6 +120,20 @@ object HarfHighlighter {
 
                 SufaraLogger.log("Резултат HARF -> Слово(мета): $targets | Харекети: $attachedDiacritics")
                 return HighlightAction.Harf(targets, attachedDiacritics)
+            }
+        }
+    }
+
+    private fun addLongVowelTargets(
+        text: String,
+        targets: MutableSet<Int>,
+        shortVowel: Char,
+        longVowel: Char
+    ) {
+        text.forEachIndexed { index, char ->
+            if (char == shortVowel && text.getOrNull(index + 1) == longVowel) {
+                targets.add(index)
+                targets.add(index + 1)
             }
         }
     }

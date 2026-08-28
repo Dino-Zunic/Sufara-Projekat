@@ -2,7 +2,6 @@ package com.dino.sufara.feature.lesson.presentation.viewer.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -16,8 +15,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,24 +29,32 @@ import com.dino.sufara.feature.lesson.domain.util.*
 import com.dino.sufara.feature.lesson.presentation.settings.GlowColorTheme
 import com.dino.sufara.feature.lesson.presentation.settings.LocalSufaraSettings
 import com.dino.sufara.feature.lesson.presentation.settings.SufaraFonts
+import com.dino.sufara.feature.lesson.presentation.viewer.audio.AssetAudioPlayer
 import com.dino.sufara.feature.lesson.presentation.viewer.components.renderers.RendererFactory
-import kotlinx.coroutines.launch
 
 @Composable
 fun ExampleStepScreen(step: LessonStep.Example, lessonId: String, symbol: String, onActionComplete: () -> Unit) {
-    val haptic = LocalHapticFeedback.current
     val settings = LocalSufaraSettings.current
+    val context = LocalContext.current
     val arabicFont = SufaraFonts.getArabicFont(settings.arabicFont)
     val exampleRenderer = remember(settings.arabicFont) { RendererFactory.getRenderer(settings.arabicFont) }
-    val interactionSource = remember { MutableInteractionSource() }
-    val scope = rememberCoroutineScope()
-    
-    var isPlaying by remember { mutableStateOf(false) }
+    val audioPlayer = remember(context, step.audioAssetPath) { AssetAudioPlayer(context) }
+    var isPlaying by remember(step.audioAssetPath) { mutableStateOf(false) }
+    var playbackFailed by remember(step.audioAssetPath) { mutableStateOf(false) }
+    val hasAudio = step.audioAssetPath != null
+
+    DisposableEffect(audioPlayer) {
+        onDispose { audioPlayer.release() }
+    }
+    LaunchedEffect(step.text, step.audioAssetPath) {
+        // A card without a recording must not block navigation.
+        if (!hasAudio) onActionComplete()
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
     val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1.2f,
-        animationSpec = infiniteRepeatable(animation = tween(300, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "Scale"
+        initialValue = 1f, targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(animation = tween(800, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "Scale"
     )
 
     val SpeakerIcon = remember {
@@ -73,24 +79,51 @@ fun ExampleStepScreen(step: LessonStep.Example, lessonId: String, symbol: String
     val action = remember(step.text, lessonId, symbol) { HarfHighlighter.analyze(step.text, lessonId, symbol) }
     val ipaTranscription = remember(step.text) { ArabicIpaTranscriber.transcribe(step.text) }
     var currentFontSize by remember(step.text) { mutableStateOf(150.sp) }
+    val playAudio: () -> Unit = {
+        val assetPath = step.audioAssetPath
+        if (!isPlaying && assetPath != null) {
+            onActionComplete()
+            playbackFailed = false
+            audioPlayer.play(
+                assetPath = assetPath,
+                onPlaybackStateChanged = { isPlaying = it },
+                onError = { error ->
+                    playbackFailed = true
+                    SufaraLogger.log("LESSON AUDIO PLAYBACK [$assetPath]: ${error.message.orEmpty()}")
+                }
+            )
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Card(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).clickable(interactionSource = interactionSource, indication = null) { 
-                if (!isPlaying) {
-                    onActionComplete()
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    scope.launch { SoundSimulator.playMockSound(onStart = { isPlaying = true }, onEnd = { isPlaying = false }) }
-                }
-            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .clickable(enabled = hasAudio && !isPlaying, onClick = playAudio),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 350.dp)) {
-                Icon(
-                    imageVector = SpeakerIcon, contentDescription = null,
-                    tint = if (isPlaying) GoldBase else TextSilver.copy(alpha = 0.4f),
-                    modifier = Modifier.align(Alignment.TopEnd).padding(24.dp).size(28.dp).graphicsLayer { if (isPlaying) { scaleX = pulseScale; scaleY = pulseScale } }
-                )
+            Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 260.dp)) {
+                if (hasAudio) {
+                    IconButton(
+                        onClick = playAudio,
+                        enabled = !isPlaying,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = SpeakerIcon,
+                            contentDescription = "Пусти изговор".asScript(),
+                            tint = when {
+                                playbackFailed -> MaterialTheme.colorScheme.error
+                                isPlaying -> GoldBase
+                                else -> TextSilver.copy(alpha = 0.78f)
+                            },
+                            modifier = Modifier.size(30.dp).graphicsLayer {
+                                if (isPlaying) { scaleX = pulseScale; scaleY = pulseScale }
+                            }
+                        )
+                    }
+                }
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,

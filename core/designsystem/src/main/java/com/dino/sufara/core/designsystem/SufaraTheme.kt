@@ -18,7 +18,10 @@ private val BlueQuranColorScheme = darkColorScheme(
     onSecondary = BlueAbyss,
     onBackground = TextParchment,
     onSurface = TextParchment,
-    error = ErrorRed
+    error = ErrorForeground,
+    errorContainer = ErrorRed,
+    onError = BlueAbyss,
+    onErrorContainer = ErrorForeground
 )
 
 @Composable

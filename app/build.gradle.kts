@@ -19,6 +19,10 @@ android {
     buildFeatures {
         compose = true
     }
+
+    androidResources {
+        noCompress += "mp3"
+    }
     
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"

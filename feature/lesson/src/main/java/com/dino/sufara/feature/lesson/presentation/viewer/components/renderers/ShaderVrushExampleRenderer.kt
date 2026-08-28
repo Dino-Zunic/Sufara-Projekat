@@ -1,10 +1,10 @@
 package com.dino.sufara.feature.lesson.presentation.viewer.components.renderers
 
-import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
+import androidx.core.graphics.createBitmap
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
@@ -102,7 +102,7 @@ class ShaderBrushExampleRenderer : ArabicExampleRenderer {
                 val height = size.height.toInt().coerceAtLeast(1)
 
                 // 1. Правимо радну меморију (Bitmap) исте величине као цео текст
-                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val bitmap = createBitmap(width, height)
                 val canvas = android.graphics.Canvas(bitmap)
                 val paint = Paint().apply { isAntiAlias = true }
 

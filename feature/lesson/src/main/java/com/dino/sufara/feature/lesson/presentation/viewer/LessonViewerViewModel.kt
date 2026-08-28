@@ -24,9 +24,7 @@ class LessonViewerViewModel(
 
     init {
         viewModelScope.launch {
-            val folders = repository.getAllLessons()
-            val fullLesson = folders.find { it.id == lessonId }
-            _lesson.value = repository.getLessonById(fullLesson?.id + " " + fullLesson?.title)
+            _lesson.value = repository.getLessonById(lessonId)
         }
     }
 
@@ -44,6 +42,17 @@ class LessonViewerViewModel(
     fun previousStep() {
         if (_currentIndex.value > 0) {
             _currentIndex.value--
+        }
+    }
+
+    fun advanceFrom(expectedIndex: Int, onComplete: () -> Unit) {
+        val currentLesson = _lesson.value ?: return
+        if (_currentIndex.value != expectedIndex) return
+
+        if (expectedIndex == currentLesson.steps.lastIndex) {
+            finishLesson(onComplete)
+        } else {
+            _currentIndex.value++
         }
     }
     

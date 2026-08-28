@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +27,13 @@ import com.dino.sufara.core.designsystem.BlueMidnight
 import com.dino.sufara.core.designsystem.GoldBase
 import com.dino.sufara.core.designsystem.GoldLight
 import com.dino.sufara.core.designsystem.TextParchment
+import kotlin.math.PI
+import kotlin.math.sin
+import kotlin.random.Random
+
+enum class WireMotionStyle { UNIFORM, ORGANIC, CALM }
+
+val LocalWireMotionStyle = compositionLocalOf { WireMotionStyle.ORGANIC }
 
 @Composable
 fun GoldenWireButton(
@@ -37,18 +45,11 @@ fun GoldenWireButton(
     wireThickness: Dp = 1.dp, 
     animDuration: Int = 3500, 
     baseAlpha: Float = 0.5f,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    onDisabledClick: (() -> Unit)? = null,
+    motionStyle: WireMotionStyle? = null
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "wire_anim")
-    val wireEasing = Easing { fraction ->
-        val linear = fraction; val smooth = fraction * fraction * (3 - 2 * fraction); (linear * 0.4f) + (smooth * 0.6f)
-    }
-
-    val angle by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(animDuration, easing = wireEasing), repeatMode = RepeatMode.Restart),
-        label = "angle"
-    )
+    val angle = rememberGoldenWireAngle(enabled, motionStyle, animDuration, text)
 
     val baseGold = if (enabled) GoldBase.copy(alpha = baseAlpha) else Color.Gray.copy(alpha = 0.2f)
     val highlightGold = if (enabled) GoldLight else Color.Gray.copy(alpha = 0.3f)
@@ -60,14 +61,16 @@ fun GoldenWireButton(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(32.dp))
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .clickable(
+                enabled = enabled || onDisabledClick != null,
+                onClick = if (enabled) onClick else onDisabledClick ?: {}
+            )
             .drawBehind {
-                val currentAngle = if (enabled) angle else 0f
-                rotate(currentAngle) { drawCircle(brush = borderGradient, radius = size.width, center = Offset(size.width / 2, size.height / 2)) }
+                rotate(angle) { drawCircle(brush = borderGradient, radius = size.width, center = Offset(size.width / 2, size.height / 2)) }
             }
             .padding(wireThickness)
             .background(BlueMidnight, RoundedCornerShape(30.dp))
-            .padding(horizontal = 32.dp, vertical = 16.dp), 
+            .padding(horizontal = 24.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -76,7 +79,41 @@ fun GoldenWireButton(
             fontSize = 16.sp, 
             fontWeight = fontWeight,
             fontFamily = font, 
-            letterSpacing = 2.sp
+            letterSpacing = 1.5.sp,
+            lineHeight = 24.sp,
+            maxLines = 1,
+            softWrap = false
         )
+    }
+}
+
+/** Stable random phase plus an integer number of rotations keeps every loop seamless. */
+@Composable
+fun rememberGoldenWireAngle(
+    enabled: Boolean,
+    motionStyle: WireMotionStyle? = null,
+    baseDurationMillis: Int = 3500,
+    phaseKey: Any? = Unit
+): Float {
+    val resolvedMotionStyle = motionStyle ?: LocalWireMotionStyle.current
+    val phase = remember(phaseKey) { Random.nextFloat() }
+    if (!enabled) return phase * 360f
+
+    val infiniteTransition = rememberInfiniteTransition(label = "wire_anim")
+    val clock by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(baseDurationMillis * 5, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wire_clock"
+    )
+    val phaseAngle = phase * 360f
+    val wave = sin((clock + phase) * (2f * PI.toFloat()))
+    return when (resolvedMotionStyle) {
+        WireMotionStyle.UNIFORM -> phaseAngle + clock * 1800f
+        WireMotionStyle.ORGANIC -> phaseAngle + clock * 1800f + wave * 24f
+        WireMotionStyle.CALM -> phaseAngle + clock * 1080f + wave * 14f
     }
 }

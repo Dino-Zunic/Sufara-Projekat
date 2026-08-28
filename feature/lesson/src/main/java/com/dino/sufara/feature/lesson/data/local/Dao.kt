@@ -28,4 +28,19 @@ interface SufaraDao {
 
     @Query("SELECT * FROM quiz_progress WHERE questionId = :id LIMIT 1")
     suspend fun getQuizProgress(id: String): QuizProgressEntity?
+
+    @Query("SELECT * FROM writing_progress")
+    suspend fun getAllWritingProgress(): List<WritingProgressEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateWritingProgress(progress: WritingProgressEntity)
+
+    @Query("DELETE FROM lesson_progress")
+    suspend fun deleteLessonProgress()
+
+    @Query("DELETE FROM quiz_progress")
+    suspend fun deleteQuizProgress()
+
+    @Query("DELETE FROM writing_progress")
+    suspend fun deleteWritingProgress()
 }

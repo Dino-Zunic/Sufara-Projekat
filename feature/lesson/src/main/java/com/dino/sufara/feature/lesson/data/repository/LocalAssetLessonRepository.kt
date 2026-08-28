@@ -6,15 +6,42 @@ import com.dino.sufara.feature.lesson.data.local.SufaraDao
 import com.dino.sufara.feature.lesson.domain.model.Lesson
 import com.dino.sufara.feature.lesson.domain.model.LessonStatus
 import com.dino.sufara.feature.lesson.domain.model.LessonStep
+import com.dino.sufara.feature.lesson.domain.model.MakharijCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.core.content.edit
 import java.io.FileNotFoundException
 import com.dino.sufara.feature.lesson.data.local.QuizProgressEntity
+import com.dino.sufara.feature.lesson.data.local.WritingProgressEntity
 
 class LocalAssetLessonRepository(
     private val context: Context,
     private val dao: SufaraDao 
 ) : com.dino.sufara.feature.lesson.domain.repository.LessonRepository {
+
+    private val developerPrefs by lazy {
+        context.getSharedPreferences("sufara_developer", Context.MODE_PRIVATE)
+    }
+
+    private val lessonTemplates: List<Lesson> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        val allAssets = context.assets.list("lekcije") ?: emptyArray()
+        val symbols = getSymbols()
+        val lessonFolders = allAssets
+            .filter { it.firstOrNull()?.isDigit() == true }
+            .sorted()
+        if (symbols.size != lessonFolders.size) {
+            com.dino.sufara.feature.lesson.domain.util.SufaraLogger.log(
+                "LESSON CONTENT: ${lessonFolders.size} fascikli, ali ${symbols.size} simbola."
+            )
+        }
+
+        lessonFolders
+            .mapIndexedNotNull { ordinal, folderName ->
+                val rawSymbol = symbols.getOrNull(ordinal)?.trim() ?: "."
+                val finalSymbol = if (rawSymbol == ".") "📖" else rawSymbol
+                parseLessonFolder(folderName, finalSymbol, ordinal)
+            }
+    }
 
     private fun getSymbols(): List<String> {
         return try {
@@ -23,25 +50,17 @@ class LocalAssetLessonRepository(
     }
 
     override suspend fun getAllLessons(): List<Lesson> = withContext(Dispatchers.IO) {
-        val allAssets = context.assets.list("lekcije") ?: emptyArray()
-        val symbols = getSymbols()
-        val validFolders = allAssets.filter { it.firstOrNull()?.isDigit() == true }.sorted()
-
         val progressList = dao.getAllLessonProgress()
         val progressMap = progressList.associateBy { it.lessonId }
 
-        validFolders.mapIndexedNotNull { index, folderName ->
-            val idPart = folderName.substringBefore(" ")
-            val rawSymbol = symbols.getOrNull(index)?.trim() ?: "."
-            val finalSymbol = if (rawSymbol == ".") "📖" else rawSymbol
-            
-            var status = progressMap[idPart]?.status
+        lessonTemplates.map { template ->
+            var status = progressMap[template.id]?.status
             if (status == null) {
-                status = if (idPart == "001") LessonStatus.UNLOCKED else LessonStatus.LOCKED
-                dao.updateLessonProgress(LessonProgressEntity(lessonId = idPart, status = status))
+                status = if (template.ordinal == 0) LessonStatus.UNLOCKED else LessonStatus.LOCKED
+                dao.updateLessonProgress(LessonProgressEntity(lessonId = template.id, status = status))
             }
 
-            parseLessonFolder(folderName, finalSymbol, status)
+            template.copy(status = status)
         }
     }
 
@@ -50,8 +69,8 @@ class LocalAssetLessonRepository(
         getAllLessons().find { it.id == numericId }
     }
 
-    private suspend fun parseLessonFolder(folderName: String, symbol: String, status: LessonStatus): Lesson? = withContext(Dispatchers.IO) {
-        try {
+    private fun parseLessonFolder(folderName: String, symbol: String, ordinal: Int): Lesson? {
+        return try {
             val basePath = "lekcije/$folderName"
             val steps = mutableListOf<LessonStep>()
             val idPart = folderName.substringBefore(" ")
@@ -59,27 +78,76 @@ class LocalAssetLessonRepository(
 
             val lekcijaText = readFile(basePath, "лекција.md")
             val dodatakText = readFile(basePath, "додатак.md")
+            val originImagePath = if (context.assets.list(basePath)?.contains("исходиште.png") == true) {
+                "file:///android_asset/$basePath/исходиште.png"
+            } else {
+                null
+            }
 
             if (lekcijaText != null) {
-                steps.add(LessonStep.Theory("Теорија", lekcijaText, dodatakText))
-                if (context.assets.list(basePath)?.contains("исходиште.png") == true) {
-                    steps.add(LessonStep.ImageInfo("file:///android_asset/$basePath/исходиште.png"))
-                }
+                steps.add(
+                    LessonStep.Theory(
+                        title = "Теорија",
+                        text = lekcijaText,
+                        dodatakText = dodatakText,
+                        makharij = MakharijCatalog.forLesson(idPart, symbol),
+                        originImagePath = originImagePath
+                    )
+                )
             }
 
             val kvizText = readFile(basePath, "квиз.md")
             if (kvizText != null) {
-                steps.addAll(parseQuiz(idPart, kvizText)) 
+                steps.addAll(QuizParser.parse(idPart, kvizText))
             }
 
             val primeriText = readFile(basePath, "примери.md")
-            if (primeriText != null) {
-                primeriText.lines().filter { it.isNotBlank() }.forEach { line ->
-                    steps.add(LessonStep.Example(line.trim()))
-                }
+            val fileExamples = primeriText
+                ?.lines()
+                ?.map { it.trim() }
+                ?.filter { it.isNotBlank() }
+                .orEmpty()
+            val audioFolderPath = "lekcije/audio/$idPart"
+            val audioAssetNames = runCatching {
+                context.assets.list(audioFolderPath).orEmpty().toList()
+            }.getOrElse { error ->
+                com.dino.sufara.feature.lesson.domain.util.SufaraLogger.log(
+                    "LESSON AUDIO [$idPart]: fascikla nije mogla da se procita: ${error.message.orEmpty()}"
+                )
+                emptyList()
+            }
+            val audioPairing = ExampleAudioPairer.pair(fileExamples, audioAssetNames)
+            if (!audioPairing.isExactMatch) {
+                com.dino.sufara.feature.lesson.domain.util.SufaraLogger.log(
+                    "LESSON AUDIO [$idPart]: ${audioPairing.exampleCount} primera, " +
+                        "${audioPairing.audioFileCount} snimaka, " +
+                        "${audioPairing.missingAudioCount} bez snimka, " +
+                        "${audioPairing.unusedAudioCount} visak snimaka."
+                )
+            }
+            audioPairing.assignments.forEach { assignment ->
+                steps.add(
+                    LessonStep.Example(
+                        text = assignment.text,
+                        audioAssetPath = assignment.audioFileName?.let { "$audioFolderPath/$it" }
+                    )
+                )
             }
 
-            Lesson(id = idPart, title = titlePart, symbol = symbol, status = status, steps = steps)
+            // Ови примери су намерно последњи кораци лекције и не улазе у курс писања.
+            GeneratedVowelExamplePolicy.forLesson(idPart, symbol)
+                .filterNot(fileExamples::contains)
+                .forEach { text ->
+                    steps.add(LessonStep.Example(text = text, includeInWriting = false))
+                }
+            Lesson(
+                id = idPart,
+                ordinal = ordinal,
+                title = titlePart,
+                symbol = symbol,
+                status = LessonStatus.LOCKED,
+                steps = steps
+            )
         } catch (e: Exception) {
             null
         }
@@ -89,32 +157,6 @@ class LocalAssetLessonRepository(
         return try {
             context.assets.open("$folder/$fileName").bufferedReader().use { it.readText() }
         } catch (e: FileNotFoundException) { null }
-    }
-
-    private fun parseQuiz(lessonId: String, text: String): List<LessonStep.Quiz> {
-        val quizzes = mutableListOf<LessonStep.Quiz>()
-        var currentQuestion = ""
-        var currentAnswers = mutableListOf<String>()
-        var questionIndex = 1 
-
-        text.lines().forEach { line ->
-            if (line.isNotBlank()) {
-                if (line.trim().first().isDigit() && !line.startsWith(" ") && !line.startsWith("\t")) {
-                    if (currentQuestion.isNotEmpty() && currentAnswers.isNotEmpty()) {
-                        quizzes.add(LessonStep.Quiz("${lessonId}_$questionIndex", currentQuestion, currentAnswers, currentAnswers.first()))
-                        questionIndex++
-                    }
-                    currentQuestion = line.substringAfter(".").trim()
-                    currentAnswers = mutableListOf()
-                } else if (line.trim().firstOrNull()?.isDigit() == true) {
-                    currentAnswers.add(line.substringAfter(".").trim())
-                }
-            }
-        }
-        if (currentQuestion.isNotEmpty() && currentAnswers.isNotEmpty()) {
-            quizzes.add(LessonStep.Quiz("${lessonId}_$questionIndex", currentQuestion, currentAnswers, currentAnswers.first()))
-        }
-        return quizzes
     }
 
     override suspend fun getFunFacts(): List<String> = withContext(Dispatchers.IO) {
@@ -144,11 +186,82 @@ class LocalAssetLessonRepository(
 
     override suspend fun unlockAllLessons() {
         withContext(Dispatchers.IO) {
+            developerPrefs.edit { putBoolean("expert_unlock", true) }
             val allLessons = getAllLessons()
-            allLessons.forEach { lesson ->
-                dao.updateLessonProgress(LessonProgressEntity(lesson.id, LessonStatus.COMPLETED, System.currentTimeMillis()))
+            allLessons.filter { it.status == LessonStatus.LOCKED }.forEach { lesson ->
+                dao.updateLessonProgress(LessonProgressEntity(lesson.id, LessonStatus.UNLOCKED))
+            }
+            val writingProgress = dao.getAllWritingProgress().associateBy { it.lessonId }
+            lessonTemplates
+                .filter { lesson -> lesson.hasWritingContent() }
+                .forEach { lesson ->
+                    val existing = writingProgress[lesson.id]
+                    if (existing?.status != LessonStatus.COMPLETED) {
+                        dao.updateWritingProgress(WritingProgressEntity(lesson.id, LessonStatus.UNLOCKED))
+                    }
+                }
+        }
+    }
+
+    override suspend fun completeWritingLessonAndUnlockNext(currentLessonId: String) {
+        withContext(Dispatchers.IO) {
+            dao.updateWritingProgress(
+                WritingProgressEntity(currentLessonId, LessonStatus.COMPLETED, System.currentTimeMillis())
+            )
+            val writingLessons = getWritingLessons()
+            val currentIndex = writingLessons.indexOfFirst { it.id == currentLessonId }
+            val nextLesson = if (currentIndex >= 0) writingLessons.getOrNull(currentIndex + 1) else null
+            if (nextLesson?.status == LessonStatus.LOCKED) {
+                dao.updateWritingProgress(WritingProgressEntity(nextLesson.id, LessonStatus.UNLOCKED))
             }
         }
+    }
+
+    override suspend fun resetAllProgress() {
+        withContext(Dispatchers.IO) {
+            developerPrefs.edit { putBoolean("expert_unlock", false) }
+            dao.deleteQuizProgress()
+            dao.deleteWritingProgress()
+            dao.deleteLessonProgress()
+        }
+    }
+
+    override suspend fun isWritingUnlocked(): Boolean = withContext(Dispatchers.IO) {
+        if (developerPrefs.getBoolean("expert_unlock", false)) return@withContext true
+        val readingLessons = getAllLessons()
+        readingLessons.isNotEmpty() && readingLessons.all { it.status == LessonStatus.COMPLETED }
+    }
+
+    override suspend fun getWritingLessons(): List<Lesson> = withContext(Dispatchers.IO) {
+        val writingTemplates = lessonTemplates.mapNotNull { lesson ->
+            if (!lesson.hasWritingContent()) return@mapNotNull null
+            val examples = lesson.steps.filterIsInstance<LessonStep.Example>().filter { it.includeInWriting }
+            if (examples.isEmpty()) null else lesson.copy(steps = examples)
+        }
+        val progressMap = dao.getAllWritingProgress().associateBy { it.lessonId }
+        val courseUnlocked = isWritingUnlocked()
+        if (!courseUnlocked) return@withContext writingTemplates.map { it.copy(status = LessonStatus.LOCKED) }
+        val writingIds = writingTemplates.mapTo(mutableSetOf()) { it.id }
+        val firstLessonNeedsUnlock = progressMap.values.none {
+            it.lessonId in writingIds && it.status != LessonStatus.LOCKED
+        }
+
+        writingTemplates.mapIndexed { index, template ->
+            var status = progressMap[template.id]?.status
+            if (status == null || (index == 0 && firstLessonNeedsUnlock && status == LessonStatus.LOCKED)) {
+                status = if (courseUnlocked && index == 0) LessonStatus.UNLOCKED else status ?: LessonStatus.LOCKED
+                dao.updateWritingProgress(WritingProgressEntity(template.id, status))
+            }
+            template.copy(status = status)
+        }
+    }
+
+    private fun Lesson.hasWritingContent(): Boolean =
+        id !in NON_WRITING_VOWEL_LESSONS &&
+            steps.filterIsInstance<LessonStep.Example>().any { it.includeInWriting }
+
+    private companion object {
+        val NON_WRITING_VOWEL_LESSONS = setOf("002", "023", "024", "025", "026")
     }
 
     override suspend fun getDueQuizzes(): List<Pair<String, LessonStep.Quiz>> = withContext(Dispatchers.IO) {
@@ -179,36 +292,27 @@ class LocalAssetLessonRepository(
     override suspend fun submitQuizAnswer(questionId: String, lessonId: String, isCorrect: Boolean) {
         withContext(Dispatchers.IO) {
             val currentProgress = dao.getQuizProgress(questionId) ?: QuizProgressEntity(questionId, lessonId)
-
-            var consecutive = currentProgress.consecutiveCorrectAnswers
-            var ef = currentProgress.easinessFactor
-            var interval = currentProgress.intervalDays
-
-            if (isCorrect) {
-                consecutive++
-                // Anki SM-2 formula za uspešan odgovor
-                interval = when (consecutive) {
-                    1 -> 1
-                    2 -> 6
-                    else -> (interval * ef).toInt()
-                }
-                // Blago nagrađujemo EF ako zna dobro
-                ef = minOf(2.5f, ef + 0.05f) 
-            } else {
-                consecutive = 0
-                interval = 1 // Vraćamo ga na početak
-                ef = maxOf(1.3f, ef - 0.2f) // Kažnjavamo EF jer je teško pitanje (ne ide ispod 1.3)
-            }
-
-            // Računamo sledeće vreme u milisekundama (interval u danima * 24h * 60m * 60s * 1000ms)
-            val nextReview = System.currentTimeMillis() + interval * 86400000L
+            val schedule = ReviewScheduler.next(
+                current = currentProgress,
+                isCorrect = isCorrect,
+                nowMillis = System.currentTimeMillis()
+            )
 
             com.dino.sufara.feature.lesson.domain.util.SufaraLogger.log(
-                "ANKI DEBUG: Pitanje [$questionId] | Tačno: $isCorrect | Zaredom: $consecutive | EF: $ef | Interval: $interval dana"
+                "ANKI: pitanje [$questionId] | tacno: $isCorrect | " +
+                    "zaredom: ${schedule.consecutiveCorrectAnswers} | " +
+                    "EF: ${schedule.easinessFactor} | interval: ${schedule.intervalDays} dana"
             )
 
             dao.updateQuizProgress(
-                QuizProgressEntity(questionId, lessonId, nextReview, interval, consecutive, ef)
+                QuizProgressEntity(
+                    questionId = questionId,
+                    lessonId = lessonId,
+                    nextReviewDate = schedule.nextReviewDate,
+                    intervalDays = schedule.intervalDays,
+                    consecutiveCorrectAnswers = schedule.consecutiveCorrectAnswers,
+                    easinessFactor = schedule.easinessFactor
+                )
             )
         }
     }

@@ -1,23 +1,27 @@
 package com.dino.sufara.feature.lesson.domain.util
 
 object ArabicWordSplitter {
-    /**
-     * Раздваја арапску реч на појединачна слова, притом задржавајући 
-     * харекете везане за њихово основно слово.
-     */
-    fun splitWord(word: String): String {
-        val sb = StringBuilder()
-        val diacritics = setOf('َ', 'ُ', 'ِ', 'ً', 'ٌ', 'ٍ', 'ّ', 'ْ', 'ٰ', '\u0670')
-        
-        for (i in word.indices) {
-            val char = word[i]
-            // Ако тренутни карактер није харекет и није прво слово, додајемо размак ПРЕ њега
-            if (char !in diacritics && i > 0 && word[i - 1] != ' ') {
-                sb.append("  ") // Дупли размак ради боље прегледности
+    private val marks = setOf('َ', 'ُ', 'ِ', 'ً', 'ٌ', 'ٍ', 'ّ', 'ْ', 'ٰ', 'ٓ', 'ٔ', 'ٕ')
+
+    /** Returns isolated written graphemes while keeping every haraka on its base letter. */
+    fun splitGraphemes(text: String): List<String> {
+        val graphemes = mutableListOf<StringBuilder>()
+        text.forEach { character ->
+            when {
+                character == 'ـ' -> Unit
+                character in marks -> {
+                    if (graphemes.isEmpty()) graphemes += StringBuilder("◌")
+                    graphemes.last().append(character)
+                }
+                character.isWhitespace() -> Unit
+                character == '◌' || character.isArabicLetter() -> graphemes += StringBuilder().append(character)
             }
-            sb.append(char)
         }
-        
-        return sb.toString().trim()
+        return graphemes.map(StringBuilder::toString)
     }
+
+    fun splitWord(word: String): String = splitGraphemes(word).joinToString("  ")
+
+    private fun Char.isArabicLetter(): Boolean =
+        this in '\u0621'..'\u064A' || this in '\u0671'..'\u06D3'
 }
